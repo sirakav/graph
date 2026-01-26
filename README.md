@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Graph Visualization
+
+An interactive graph visualization application built with Next.js, React Flow, and TypeScript. This project provides a powerful interface for visualizing and exploring graph data structures with support for custom layouts, node grouping, and interactive editing.
+
+## Features
+
+- **Interactive Graph Canvas**: Visualize graphs using React Flow with drag-and-drop functionality
+- **Custom Layout Engine**: Automatic graph layout using Dagre algorithm
+- **Node Grouping**: Organize nodes into collapsible groups
+- **Schema Support**: Define and visualize graph schemas with typed nodes and edges
+- **Import/Export**: Load and save graph data in JSON format
+- **Responsive UI**: Modern interface built with Radix UI and Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```bash
+npm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To build the production version:
 
-## Learn More
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/` - Next.js app router pages and layouts
+- `components/` - React components including graph canvas, nodes, and UI elements
+- `lib/` - Core libraries for graph parsing, layout engine, and state management
+- `docs/` - Project documentation and schema definitions
+- `public/` - Static assets and demo graph data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Technologies
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js](https://nextjs.org) - React framework
+- [React Flow](https://reactflow.dev) - Graph visualization library
+- [Dagre](https://github.com/dagrejs/dagre) - Graph layout algorithm
+- [Zustand](https://github.com/pmndrs/zustand) - State management
+- [Radix UI](https://www.radix-ui.com) - UI component primitives
+- [Tailwind CSS](https://tailwindcss.com) - Styling

@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Upload, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus } from 'lucide-react';
+import { Upload, Download, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus } from 'lucide-react';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ImportDialog } from '@/components/import-dialog';
+import { ExportDialog } from '@/components/export-dialog';
 import { LayoutToolbar } from '@/components/layout-toolbar';
 import { NodeInspector } from '@/components/node-inspector';
 import { SavedGraphsPanel } from '@/components/saved-graphs-panel';
@@ -184,6 +185,12 @@ export default function Home() {
                 Import JSON
               </Button>
             </ImportDialog>
+            <ExportDialog>
+              <Button variant="outline" size="sm" className="gap-2" disabled={nodes.length === 0}>
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </ExportDialog>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 

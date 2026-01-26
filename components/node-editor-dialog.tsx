@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Circle } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, Trash2, Circle, Sparkles } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,13 @@ interface NodeEditorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   nodeId?: string | null; // If provided, we're editing an existing node
+}
+
+interface NodeTypeSuggestion {
+  labels: string[];
+  properties: string[];
+  color: { border: string; bg: string; name: string };
+  count: number;
 }
 
 const COLOR_PRESETS = [
@@ -47,6 +54,60 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
   const [newLabel, setNewLabel] = useState('');
   const [properties, setProperties] = useState<{ key: string; value: string }[]>([]);
   const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
+
+  // Extract node type suggestions from existing graph
+  const nodeTypeSuggestions = useMemo((): NodeTypeSuggestion[] => {
+    const typeMap = new Map<string, {
+      labels: string[];
+      propertyKeys: Set<string>;
+      color: { border: string; bg: string; name: string };
+      count: number;
+    }>();
+
+    nodes.forEach((node) => {
+      const data = node.data as SchemaNodeData;
+      if (!data.labels || data.labels.length === 0) return;
+
+      // Use sorted labels as key to group same node types
+      const labelsKey = [...data.labels].sort().join(':');
+      
+      if (typeMap.has(labelsKey)) {
+        const existing = typeMap.get(labelsKey)!;
+        // Merge property keys
+        Object.keys(data.properties || {}).forEach((key) => {
+          existing.propertyKeys.add(key);
+        });
+        existing.count++;
+      } else {
+        const borderColor = data.style?.borderColor || '#4C8EDA';
+        const matchingPreset = COLOR_PRESETS.find((c) => c.border === borderColor);
+        
+        typeMap.set(labelsKey, {
+          labels: data.labels,
+          propertyKeys: new Set(Object.keys(data.properties || {})),
+          color: matchingPreset || { border: borderColor, bg: `${borderColor}20`, name: 'Custom' },
+          count: 1,
+        });
+      }
+    });
+
+    // Convert to array and sort by count (most used first)
+    return Array.from(typeMap.values())
+      .map((item) => ({
+        labels: item.labels,
+        properties: Array.from(item.propertyKeys).sort(),
+        color: item.color,
+        count: item.count,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [nodes]);
+
+  // Apply a suggestion to the form
+  const applySuggestion = useCallback((suggestion: NodeTypeSuggestion) => {
+    setLabels([...suggestion.labels]);
+    setProperties(suggestion.properties.map((key) => ({ key, value: '' })));
+    setSelectedColor(suggestion.color);
+  }, []);
 
   // Reset form when dialog opens or node changes
   useEffect(() => {
@@ -146,6 +207,63 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
 
         <ScrollArea className="max-h-[60vh]">
           <div className="space-y-6 p-1">
+            {/* Node Type Suggestions - Only show when creating new node and suggestions exist */}
+            {!isEditing && nodeTypeSuggestions.length > 0 && (
+              <div>
+                <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Use Existing Type ({nodeTypeSuggestions.length})
+                </Label>
+                <div className="max-h-[200px] overflow-y-auto overscroll-contain rounded-lg border border-zinc-800/50 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent hover:scrollbar-thumb-zinc-600 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700 hover:[&::-webkit-scrollbar-thumb]:bg-zinc-600">
+                  {nodeTypeSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => applySuggestion(suggestion)}
+                      className="w-full flex items-start gap-3 p-3 border-b border-zinc-800/50 last:border-b-0 hover:bg-zinc-800/50 transition-all text-left"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0 mt-0.5 ring-2 ring-offset-1 ring-offset-zinc-900"
+                        style={{
+                          backgroundColor: suggestion.color.bg,
+                          borderColor: suggestion.color.border,
+                          ringColor: suggestion.color.border,
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {suggestion.labels.map((label, labelIdx) => (
+                            <Badge
+                              key={labelIdx}
+                              variant="secondary"
+                              className="text-xs font-medium"
+                              style={{
+                                backgroundColor: `${suggestion.color.border}15`,
+                                color: suggestion.color.border,
+                                borderColor: `${suggestion.color.border}40`,
+                                borderWidth: '1px',
+                              }}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                          <span className="text-[10px] text-zinc-500">
+                            ({suggestion.count} {suggestion.count === 1 ? 'node' : 'nodes'})
+                          </span>
+                        </div>
+                        {suggestion.properties.length > 0 && (
+                          <div className="mt-1.5 text-xs text-zinc-500 truncate">
+                            Properties: {suggestion.properties.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <Separator className="bg-zinc-800 mt-4" />
+              </div>
+            )}
+
             {/* Color Selection */}
             <div>
               <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3 block">

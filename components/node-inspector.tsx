@@ -28,7 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { useGraphStore, useSelectedNode, useSelectedEdge } from '@/lib/graph-store';
+import { useGraphStore, useSelectedNode, useSelectedEdge, useSelectedNodeIds, useSelectedNodes, useInspectorOpen } from '@/lib/graph-store';
 import type { SchemaNodeData, SchemaEdgeData, SchemaEdge, GraphNode } from '@/lib/arrow-parser';
 
 const COLOR_PRESETS = [
@@ -45,12 +45,19 @@ const COLOR_PRESETS = [
 export function NodeInspector() {
   const selectedNode = useSelectedNode();
   const selectedEdge = useSelectedEdge();
-  const clearSelection = useGraphStore((state) => state.clearSelection);
+  const selectedNodeIds = useSelectedNodeIds();
+  const selectedNodes = useSelectedNodes();
+  const inspectorOpen = useInspectorOpen();
+  const closeInspector = useGraphStore((state) => state.closeInspector);
   const deleteNode = useGraphStore((state) => state.deleteNode);
+  const deleteSelectedNodes = useGraphStore((state) => state.deleteSelectedNodes);
   const deleteEdge = useGraphStore((state) => state.deleteEdge);
   const updateNode = useGraphStore((state) => state.updateNode);
   const updateEdge = useGraphStore((state) => state.updateEdge);
   const nodes = useGraphStore((state) => state.nodes);
+  
+  // Multi-selection state
+  const isMultiSelection = selectedNodeIds.length > 1;
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
@@ -74,7 +81,10 @@ export function NodeInspector() {
   const startX = useRef(0);
   const startWidth = useRef(0);
 
-  const isOpen = selectedNode !== null || selectedEdge !== null;
+  // Drawer only opens when inspectorOpen is true AND there's something selected
+  // This is controlled via double-click, not automatic on selection
+  const hasSelection = selectedNode !== null || selectedEdge !== null || isMultiSelection;
+  const isOpen = inspectorOpen && hasSelection;
   
   // Handle resize
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -212,7 +222,9 @@ export function NodeInspector() {
   }, [selectedEdge?.id, edgeData]);
 
   const handleDelete = () => {
-    if (selectedNode) {
+    if (isMultiSelection) {
+      deleteSelectedNodes();
+    } else if (selectedNode) {
       deleteNode(selectedNode.id);
     } else if (selectedEdge) {
       deleteEdge(selectedEdge.id);
@@ -359,7 +371,7 @@ export function NodeInspector() {
   }, [editingEdgeProperties, selectedEdge, updateEdge]);
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && clearSelection()}>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && closeInspector()}>
       <SheetContent 
         className="sm:!max-w-none bg-zinc-900 border-zinc-800 p-0" 
         style={{ width: drawerWidth }}
@@ -379,7 +391,13 @@ export function NodeInspector() {
         <SheetHeader className="p-4 pb-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-zinc-100 flex items-center gap-2">
-              {selectedNode && nodeData && (
+              {isMultiSelection && (
+                <>
+                  <Circle className="w-4 h-4 text-blue-400" />
+                  {selectedNodeIds.length} Nodes Selected
+                </>
+              )}
+              {!isMultiSelection && selectedNode && nodeData && (
                 <>
                   {nodeData.isGroup ? (
                     <Layers className="w-4 h-4" style={{ color: nodeData.style.borderColor }} />
@@ -389,7 +407,7 @@ export function NodeInspector() {
                   {nodeData.isGroup ? 'Edit Group' : 'Edit Node'}
                 </>
               )}
-              {selectedEdge && (
+              {!isMultiSelection && selectedEdge && (
                 <>
                   <ArrowRight className="w-4 h-4 text-blue-400" />
                   Edit Relationship
@@ -408,7 +426,7 @@ export function NodeInspector() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={clearSelection}
+                onClick={closeInspector}
                 className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
               >
                 <X className="w-4 h-4" />
@@ -418,8 +436,66 @@ export function NodeInspector() {
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-80px)]">
+          {/* Multi-Selection View */}
+          {isMultiSelection && (
+            <div className="p-4 space-y-6">
+              {/* Selected Nodes List */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                  Selected Nodes
+                </h4>
+                <div className="space-y-2">
+                  {selectedNodes.map((node) => {
+                    const data = node.data as SchemaNodeData;
+                    return (
+                      <div
+                        key={node.id}
+                        className="flex items-center gap-2 p-2 bg-zinc-800/50 rounded-lg"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: data?.style?.borderColor || '#4C8EDA' }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-zinc-200 truncate">
+                            {data?.labels?.[0] || 'Unlabeled'}
+                          </div>
+                          <div className="text-[10px] text-zinc-500 font-mono truncate">
+                            {node.id}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Separator className="bg-zinc-800" />
+
+              {/* Bulk Actions */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                  Bulk Actions
+                </h4>
+                <div className="space-y-2">
+                  <Button
+                    variant="destructive"
+                    className="w-full gap-2"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete {selectedNodeIds.length} Nodes
+                  </Button>
+                </div>
+                <p className="text-xs text-zinc-500 mt-2">
+                  Tip: Press <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-[10px]">Delete</kbd> or <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-[10px]">Backspace</kbd> to delete selected nodes
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Node Editor */}
-          {selectedNode && nodeData && !nodeData.isGroup && (
+          {!isMultiSelection && selectedNode && nodeData && !nodeData.isGroup && (
             <div className="p-4 space-y-6">
               {/* Node ID (read-only) */}
               <div>
@@ -713,7 +789,7 @@ export function NodeInspector() {
           )}
 
           {/* Group Node (read-only display) */}
-          {selectedNode && nodeData && nodeData.isGroup && (
+          {!isMultiSelection && selectedNode && nodeData && nodeData.isGroup && (
             <div className="p-4 space-y-6">
               <div>
                 <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
@@ -767,7 +843,7 @@ export function NodeInspector() {
           )}
 
           {/* Edge Editor */}
-          {selectedEdge && edgeData && (
+          {!isMultiSelection && selectedEdge && edgeData && (
             <div className="p-4 space-y-6">
               {/* Connection Visual */}
               <div>
@@ -908,12 +984,18 @@ export function NodeInspector() {
         <AlertDialogContent className="bg-zinc-900 border-zinc-800">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-zinc-100">
-              Delete {selectedNode ? 'Node' : 'Relationship'}?
+              {isMultiSelection 
+                ? `Delete ${selectedNodeIds.length} Nodes?`
+                : selectedNode 
+                  ? 'Delete Node?' 
+                  : 'Delete Relationship?'}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400">
-              {selectedNode
-                ? 'This will delete the node and all its connected relationships. This action cannot be undone.'
-                : 'This will delete the relationship. This action cannot be undone.'}
+              {isMultiSelection
+                ? `This will delete ${selectedNodeIds.length} nodes and all their connected relationships. This action cannot be undone.`
+                : selectedNode
+                  ? 'This will delete the node and all its connected relationships. This action cannot be undone.'
+                  : 'This will delete the relationship. This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

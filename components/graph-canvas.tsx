@@ -9,10 +9,12 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  SelectionMode,
   type NodeTypes,
   type EdgeTypes,
   type Node,
   type Connection,
+  type OnSelectionChangeParams,
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -47,18 +49,34 @@ export function GraphCanvas() {
   const storeEdges = useGraphStore((state) => state.edges);
   const setStoreNodes = useGraphStore((state) => state.setNodes);
   const selectNode = useGraphStore((state) => state.selectNode);
+  const selectNodes = useGraphStore((state) => state.selectNodes);
+  const selectedNodeIds = useGraphStore((state) => state.selectedNodeIds);
   const selectEdge = useGraphStore((state) => state.selectEdge);
   const clearSelection = useGraphStore((state) => state.clearSelection);
+  const openInspector = useGraphStore((state) => state.openInspector);
+  const closeInspector = useGraphStore((state) => state.closeInspector);
   const showGroups = useGraphStore((state) => state.showGroups);
+  const mouseMode = useGraphStore((state) => state.mouseMode);
   
   const addEdgeToStore = useGraphStore((state) => state.addEdge);
   const { fitView } = useReactFlow();
   const prevNodeIdsRef = useRef<string>('');
+  const isInternalSelectionChange = useRef(false);
 
   // Filter out group nodes when showGroups is false
   // Also remove parentId from child nodes to prevent React Flow errors
+  // And sync selection state with our store
   const filteredNodes = useMemo(() => {
-    if (showGroups) return storeNodes;
+    const selectedSet = new Set(selectedNodeIds);
+    
+    const processNodes = (nodes: typeof storeNodes) => {
+      return nodes.map((node) => ({
+        ...node,
+        selected: selectedSet.has(node.id),
+      }));
+    };
+    
+    if (showGroups) return processNodes(storeNodes);
     
     // Get IDs of all group nodes
     const groupNodeIds = new Set(
@@ -66,7 +84,7 @@ export function GraphCanvas() {
     );
     
     // Filter out group nodes and remove parent references from children
-    return storeNodes
+    const filtered = storeNodes
       .filter((node) => node.type !== 'groupNode')
       .map((node) => {
         // If this node's parent is a hidden group, remove the parent reference
@@ -77,7 +95,9 @@ export function GraphCanvas() {
         }
         return node;
       });
-  }, [storeNodes, showGroups]);
+      
+    return processNodes(filtered);
+  }, [storeNodes, showGroups, selectedNodeIds]);
 
   // Add markers to edges
   const edgesWithMarkers = storeEdges.map((edge) => ({
@@ -149,10 +169,19 @@ export function GraphCanvas() {
   );
 
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      selectNode(node.id);
+    (event: React.MouseEvent, node: Node) => {
+      // If clicking on an already-selected node, don't change selection
+      // This allows dragging multiple selected nodes without losing selection
+      if (selectedNodeIds.includes(node.id) && selectedNodeIds.length > 1) {
+        return;
+      }
+      
+      // In select mode, shift+click adds to selection
+      // In pan mode, clicking always replaces selection
+      const addToSelection = mouseMode === 'select' && (event.shiftKey || event.metaKey || event.ctrlKey);
+      selectNode(node.id, addToSelection);
     },
-    [selectNode]
+    [selectNode, mouseMode, selectedNodeIds]
   );
 
   const handleEdgeClick = useCallback(
@@ -163,9 +192,52 @@ export function GraphCanvas() {
     [selectEdge]
   );
 
+  // Double-click on node opens the inspector
+  const handleNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      selectNode(node.id);
+      openInspector();
+    },
+    [selectNode, openInspector]
+  );
+
+  // Double-click on edge opens the inspector
+  const handleEdgeDoubleClick = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_: React.MouseEvent, edge: any) => {
+      selectEdge(edge.id);
+      openInspector();
+    },
+    [selectEdge, openInspector]
+  );
+
   const handlePaneClick = useCallback(() => {
     clearSelection();
-  }, [clearSelection]);
+    closeInspector();
+  }, [clearSelection, closeInspector]);
+  
+  // Handle selection changes from React Flow (e.g., from drag selection box)
+  const handleSelectionChange = useCallback(
+    (params: OnSelectionChangeParams) => {
+      // Prevent infinite loops - only process external selection changes
+      if (isInternalSelectionChange.current) {
+        isInternalSelectionChange.current = false;
+        return;
+      }
+      
+      const newSelectedIds = params.nodes.map((n) => n.id);
+      
+      // Only update if selection actually changed
+      const currentIds = selectedNodeIds.sort().join(',');
+      const newIds = newSelectedIds.sort().join(',');
+      
+      if (currentIds !== newIds) {
+        isInternalSelectionChange.current = true;
+        selectNodes(newSelectedIds);
+      }
+    },
+    [selectNodes, selectedNodeIds]
+  );
 
   // Handle new edge connections (drag from handle to handle)
   // Automatically creates the edge with a default type, user can edit in inspector
@@ -183,6 +255,9 @@ export function GraphCanvas() {
     [addEdgeToStore]
   );
 
+  // Configure based on mouse mode
+  const isSelectMode = mouseMode === 'select';
+  
   return (
     <div className="w-full h-full">
       <ReactFlow
@@ -191,9 +266,12 @@ export function GraphCanvas() {
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onEdgeClick={handleEdgeClick}
+        onEdgeDoubleClick={handleEdgeDoubleClick}
         onPaneClick={handlePaneClick}
         onConnect={handleConnect}
+        onSelectionChange={handleSelectionChange}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
@@ -204,6 +282,18 @@ export function GraphCanvas() {
         proOptions={{ hideAttribution: true }}
         className="bg-zinc-950"
         connectOnClick={false}
+        // Nodes are always draggable
+        nodesDraggable={true}
+        // Selection mode configuration
+        selectionOnDrag={isSelectMode}
+        selectionMode={SelectionMode.Partial}
+        // In pan mode: drag pans the canvas, in select mode: drag creates selection box
+        panOnDrag={!isSelectMode}
+        // Allow multi-selection with modifier keys in both modes
+        multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
+        // In select mode, allow panning with scroll wheel
+        panOnScroll={isSelectMode}
+        selectionKeyCode={null}
       >
         <Background
           color="#27272a"

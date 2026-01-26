@@ -51,7 +51,10 @@ export function LayoutToolbar() {
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const setNodes = useGraphStore((state) => state.setNodes);
-  const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
+  // For centering layout, only use if exactly one node is selected
+  const selectedNodeId = useGraphStore((state) => 
+    state.selectedNodeIds.length === 1 ? state.selectedNodeIds[0] : null
+  );
   const showGroups = useGraphStore((state) => state.showGroups);
   const setShowGroups = useGraphStore((state) => state.setShowGroups);
   

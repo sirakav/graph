@@ -227,7 +227,6 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
                         style={{
                           backgroundColor: suggestion.color.bg,
                           borderColor: suggestion.color.border,
-                          ringColor: suggestion.color.border,
                         }}
                       />
                       <div className="flex-1 min-w-0">

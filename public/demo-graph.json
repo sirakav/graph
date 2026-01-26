@@ -1,0 +1,302 @@
+{
+  "nodes": [
+    {
+      "id": "library_1",
+      "position": { "x": 400, "y": 50 },
+      "labels": ["Library"],
+      "properties": {
+        "name": "Central Public Library",
+        "address": "123 Main Street",
+        "established": "1985"
+      },
+      "style": {
+        "border-color": "#4A90E2",
+        "node-color": "#1A3A5C"
+      }
+    },
+    {
+      "id": "book_1",
+      "position": { "x": 200, "y": 200 },
+      "labels": ["Book"],
+      "properties": {
+        "title": "The Great Adventure",
+        "isbn": "978-0123456789",
+        "year": "2020"
+      },
+      "style": {
+        "border-color": "#E8A87C",
+        "node-color": "#5C3A1A"
+      }
+    },
+    {
+      "id": "book_2",
+      "position": { "x": 400, "y": 200 },
+      "labels": ["Book"],
+      "properties": {
+        "title": "Mystery of the Night",
+        "isbn": "978-0987654321",
+        "year": "2019"
+      },
+      "style": {
+        "border-color": "#E8A87C",
+        "node-color": "#5C3A1A"
+      }
+    },
+    {
+      "id": "book_3",
+      "position": { "x": 600, "y": 200 },
+      "labels": ["Book"],
+      "properties": {
+        "title": "Science Explained",
+        "isbn": "978-1122334455",
+        "year": "2021"
+      },
+      "style": {
+        "border-color": "#E8A87C",
+        "node-color": "#5C3A1A"
+      }
+    },
+    {
+      "id": "author_1",
+      "position": { "x": 150, "y": 400 },
+      "labels": ["Author"],
+      "properties": {
+        "name": "Jane Smith",
+        "nationality": "American",
+        "born": "1975"
+      },
+      "style": {
+        "border-color": "#C38D9E",
+        "node-color": "#4A2A35"
+      }
+    },
+    {
+      "id": "author_2",
+      "position": { "x": 350, "y": 400 },
+      "labels": ["Author"],
+      "properties": {
+        "name": "John Doe",
+        "nationality": "British",
+        "born": "1980"
+      },
+      "style": {
+        "border-color": "#C38D9E",
+        "node-color": "#4A2A35"
+      }
+    },
+    {
+      "id": "author_3",
+      "position": { "x": 550, "y": 400 },
+      "labels": ["Author"],
+      "properties": {
+        "name": "Alice Johnson",
+        "nationality": "Canadian",
+        "born": "1985"
+      },
+      "style": {
+        "border-color": "#C38D9E",
+        "node-color": "#4A2A35"
+      }
+    },
+    {
+      "id": "member_1",
+      "position": { "x": 200, "y": 600 },
+      "labels": ["Member"],
+      "properties": {
+        "name": "Bob Wilson",
+        "member_id": "M001",
+        "joined": "2022-01-15"
+      },
+      "style": {
+        "border-color": "#41B3A3",
+        "node-color": "#1A4A42"
+      }
+    },
+    {
+      "id": "member_2",
+      "position": { "x": 400, "y": 600 },
+      "labels": ["Member"],
+      "properties": {
+        "name": "Sarah Brown",
+        "member_id": "M002",
+        "joined": "2021-06-20"
+      },
+      "style": {
+        "border-color": "#41B3A3",
+        "node-color": "#1A4A42"
+      }
+    },
+    {
+      "id": "member_3",
+      "position": { "x": 600, "y": 600 },
+      "labels": ["Member"],
+      "properties": {
+        "name": "Mike Davis",
+        "member_id": "M003",
+        "joined": "2023-03-10"
+      },
+      "style": {
+        "border-color": "#41B3A3",
+        "node-color": "#1A4A42"
+      }
+    },
+    {
+      "id": "genre_1",
+      "position": { "x": 100, "y": 300 },
+      "labels": ["Genre"],
+      "properties": {
+        "name": "Adventure",
+        "description": "Exciting journey stories"
+      },
+      "style": {
+        "border-color": "#F7DC6F",
+        "node-color": "#5C4A1A"
+      }
+    },
+    {
+      "id": "genre_2",
+      "position": { "x": 300, "y": 300 },
+      "labels": ["Genre"],
+      "properties": {
+        "name": "Mystery",
+        "description": "Puzzle-solving narratives"
+      },
+      "style": {
+        "border-color": "#F7DC6F",
+        "node-color": "#5C4A1A"
+      }
+    },
+    {
+      "id": "genre_3",
+      "position": { "x": 500, "y": 300 },
+      "labels": ["Genre"],
+      "properties": {
+        "name": "Science",
+        "description": "Educational content"
+      },
+      "style": {
+        "border-color": "#F7DC6F",
+        "node-color": "#5C4A1A"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "id": "r1",
+      "fromId": "book_1",
+      "toId": "library_1",
+      "type": "LOCATED_IN",
+      "properties": { "copies": 3 }
+    },
+    {
+      "id": "r2",
+      "fromId": "book_2",
+      "toId": "library_1",
+      "type": "LOCATED_IN",
+      "properties": { "copies": 2 }
+    },
+    {
+      "id": "r3",
+      "fromId": "book_3",
+      "toId": "library_1",
+      "type": "LOCATED_IN",
+      "properties": { "copies": 5 }
+    },
+    {
+      "id": "r4",
+      "fromId": "author_1",
+      "toId": "book_1",
+      "type": "WROTE",
+      "properties": { "year": "2020" }
+    },
+    {
+      "id": "r5",
+      "fromId": "author_2",
+      "toId": "book_2",
+      "type": "WROTE",
+      "properties": { "year": "2019" }
+    },
+    {
+      "id": "r6",
+      "fromId": "author_3",
+      "toId": "book_3",
+      "type": "WROTE",
+      "properties": { "year": "2021" }
+    },
+    {
+      "id": "r7",
+      "fromId": "member_1",
+      "toId": "book_1",
+      "type": "BORROWED",
+      "properties": { "borrowed_date": "2024-01-10", "due_date": "2024-02-10" }
+    },
+    {
+      "id": "r8",
+      "fromId": "member_2",
+      "toId": "book_2",
+      "type": "BORROWED",
+      "properties": { "borrowed_date": "2024-01-15", "due_date": "2024-02-15" }
+    },
+    {
+      "id": "r9",
+      "fromId": "member_3",
+      "toId": "book_3",
+      "type": "BORROWED",
+      "properties": { "borrowed_date": "2024-01-20", "due_date": "2024-02-20" }
+    },
+    {
+      "id": "r10",
+      "fromId": "member_1",
+      "toId": "library_1",
+      "type": "MEMBER_OF",
+      "properties": { "status": "active" }
+    },
+    {
+      "id": "r11",
+      "fromId": "member_2",
+      "toId": "library_1",
+      "type": "MEMBER_OF",
+      "properties": { "status": "active" }
+    },
+    {
+      "id": "r12",
+      "fromId": "member_3",
+      "toId": "library_1",
+      "type": "MEMBER_OF",
+      "properties": { "status": "active" }
+    },
+    {
+      "id": "r13",
+      "fromId": "book_1",
+      "toId": "genre_1",
+      "type": "BELONGS_TO",
+      "properties": {}
+    },
+    {
+      "id": "r14",
+      "fromId": "book_2",
+      "toId": "genre_2",
+      "type": "BELONGS_TO",
+      "properties": {}
+    },
+    {
+      "id": "r15",
+      "fromId": "book_3",
+      "toId": "genre_3",
+      "type": "BELONGS_TO",
+      "properties": {}
+    }
+  ],
+  "style": {
+    "font-family": "Nunito Sans",
+    "background-color": "#1A1A2E",
+    "node-color": "#4C8EDA",
+    "border-width": 2,
+    "radius": 75,
+    "caption-color": "#ffffff",
+    "caption-font-size": 16,
+    "arrow-color": "#848484",
+    "arrow-width": 2,
+    "directionality": "directed"
+  }
+}

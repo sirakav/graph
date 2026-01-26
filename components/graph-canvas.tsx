@@ -12,6 +12,7 @@ import {
   type NodeTypes,
   type EdgeTypes,
   type Node,
+  type Connection,
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -50,6 +51,7 @@ export function GraphCanvas() {
   const clearSelection = useGraphStore((state) => state.clearSelection);
   const showGroups = useGraphStore((state) => state.showGroups);
   
+  const addEdgeToStore = useGraphStore((state) => state.addEdge);
   const { fitView } = useReactFlow();
   const prevNodeIdsRef = useRef<string>('');
 
@@ -165,6 +167,22 @@ export function GraphCanvas() {
     clearSelection();
   }, [clearSelection]);
 
+  // Handle new edge connections (drag from handle to handle)
+  // Automatically creates the edge with a default type, user can edit in inspector
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (connection.source && connection.target) {
+        addEdgeToStore({
+          sourceId: connection.source,
+          targetId: connection.target,
+          relationshipType: 'RELATES_TO',
+          properties: {},
+        });
+      }
+    },
+    [addEdgeToStore]
+  );
+
   return (
     <div className="w-full h-full">
       <ReactFlow
@@ -175,6 +193,7 @@ export function GraphCanvas() {
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
+        onConnect={handleConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
@@ -184,6 +203,7 @@ export function GraphCanvas() {
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
         className="bg-zinc-950"
+        connectOnClick={false}
       >
         <Background
           color="#27272a"

@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Upload, Database, Github, FolderOpen, Share2, Check, AlertTriangle } from 'lucide-react';
+import { Upload, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus } from 'lucide-react';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ImportDialog } from '@/components/import-dialog';
 import { LayoutToolbar } from '@/components/layout-toolbar';
 import { NodeInspector } from '@/components/node-inspector';
 import { SavedGraphsPanel } from '@/components/saved-graphs-panel';
+import { EditToolbar } from '@/components/edit-toolbar';
+import { NodeEditorDialog } from '@/components/node-editor-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -42,6 +44,7 @@ export default function Home() {
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [urlTooLong, setUrlTooLong] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [newGraphDialogOpen, setNewGraphDialogOpen] = useState(false);
 
   // Reconstruct ArrowGraph from current state for sharing
   const getCurrentArrowGraph = useCallback((): ArrowGraph | null => {
@@ -240,12 +243,12 @@ export default function Home() {
               {/* Graph Canvas */}
               <GraphCanvas />
 
-              {/* Layout Toolbar - Floating */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
-                <LayoutToolbar />
+              {/* Add Node Button - Top Right */}
+              <div className="absolute top-4 right-4 z-10">
+                <EditToolbar />
               </div>
 
-              {/* Stats Badge */}
+              {/* Stats Badge - Top Left */}
               <Card className="absolute top-4 left-4 z-10 py-1.5 shadow-md">
                 <CardContent className="p-0 px-3 flex items-center gap-2 text-xs">
                   <span className="flex items-center gap-1.5">
@@ -259,6 +262,11 @@ export default function Home() {
                   </span>
                 </CardContent>
               </Card>
+
+              {/* Layout Toolbar - Bottom Center */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
+                <LayoutToolbar />
+              </div>
             </>
           ) : (
             /* Empty State */
@@ -275,7 +283,11 @@ export default function Home() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <Button onClick={() => setNewGraphDialogOpen(true)} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Create New Graph
+                  </Button>
                   {savedGraphs.length > 0 && (
                     <SavedGraphsPanel>
                       <Button variant="outline" className="gap-2">
@@ -285,9 +297,9 @@ export default function Home() {
                     </SavedGraphsPanel>
                   )}
                   <ImportDialog>
-                    <Button className="gap-2">
+                    <Button variant="outline" className="gap-2">
                       <Upload className="w-4 h-4" />
-                      Import Arrow Graph JSON
+                      Import JSON
                     </Button>
                   </ImportDialog>
                 </div>
@@ -298,6 +310,12 @@ export default function Home() {
 
         {/* Node Inspector Sheet */}
         <NodeInspector />
+
+        {/* New Graph Dialog - Creates first node */}
+        <NodeEditorDialog
+          open={newGraphDialogOpen}
+          onOpenChange={setNewGraphDialogOpen}
+        />
       </div>
     </ReactFlowProvider>
   );

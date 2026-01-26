@@ -41,7 +41,7 @@ export default function Home() {
   
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [urlTooLong, setUrlTooLong] = useState(false);
-  const [loadedFromUrl, setLoadedFromUrl] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Reconstruct ArrowGraph from current state for sharing
   const getCurrentArrowGraph = useCallback((): ArrowGraph | null => {
@@ -100,29 +100,36 @@ export default function Home() {
     }
   }, [getCurrentArrowGraph]);
 
-  // Load from URL on mount (highest priority)
+  // Single initialization effect to handle URL loading and demo fallback
+  // This avoids race conditions between separate effects
   useEffect(() => {
+    if (isInitialized) return;
+    
+    // Priority 1: Load from shared URL
     if (hasSharedGraphInUrl()) {
       const sharedGraph = loadSharedGraphFromUrl();
       if (sharedGraph) {
         const { nodes: parsedNodes, edges: parsedEdges, graphStyle: parsedStyle } = parseArrowGraph(sharedGraph);
         setGraph(parsedNodes, parsedEdges, parsedStyle);
-        setLoadedFromUrl(true);
         
         // Auto-save the imported graph
         saveGraph('Imported from shared link', sharedGraph);
         
         // Clear the URL parameter to allow normal navigation
         clearGraphFromUrl();
+        
+        setIsInitialized(true);
+        return;
       }
     }
-  }, [setGraph, saveGraph]);
-
-  // Load demo data on mount only if no saved graphs exist and not loaded from URL
-  useEffect(() => {
-    // Skip if already loaded from URL or if there are saved graphs
-    if (loadedFromUrl || savedGraphs.length > 0) return;
     
+    // Priority 2: Skip demo if user has saved graphs
+    if (savedGraphs.length > 0) {
+      setIsInitialized(true);
+      return;
+    }
+    
+    // Priority 3: Load demo graph for new users
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
     fetch(`${basePath}/demo-graph.json`)
       .then((res) => res.json())
@@ -133,8 +140,9 @@ export default function Home() {
           setGraph(nodes, edges, graphStyle);
         }
       })
-      .catch((err) => console.error('Failed to load demo graph:', err));
-  }, [setGraph, savedGraphs.length, loadedFromUrl]);
+      .catch((err) => console.error('Failed to load demo graph:', err))
+      .finally(() => setIsInitialized(true));
+  }, [setGraph, saveGraph, savedGraphs.length, isInitialized]);
 
   const hasGraph = nodes.length > 0;
 

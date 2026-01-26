@@ -1,16 +1,33 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { SchemaNode as SchemaNodeType, SchemaNodeData } from '@/lib/arrow-parser';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-// Simple test component to debug rendering issues
+// Custom handle styles - small but visible
+const handleBaseStyles = `
+  !w-1.5 !h-1.5 !rounded-full !border 
+  transition-all duration-200 ease-out
+  hover:!scale-150 hover:!shadow-md
+`;
+
+const targetHandleStyles = `
+  ${handleBaseStyles}
+  !bg-blue-400 !border-blue-500/50
+  hover:!bg-blue-300 hover:!border-blue-400
+`;
+
+const sourceHandleStyles = `
+  ${handleBaseStyles}
+  !bg-emerald-400 !border-emerald-500/50
+  hover:!bg-emerald-300 hover:!border-emerald-400
+`;
+
 function SchemaNodeComponent(props: NodeProps) {
-  console.log('SchemaNode render called with props:', props);
-  
   const { data, selected } = props;
+  const [isHovered, setIsHovered] = useState(false);
   const nodeData = data as SchemaNodeData | undefined;
   
   // If no data, show debug info
@@ -28,7 +45,7 @@ function SchemaNodeComponent(props: NodeProps) {
   return (
     <div
       className={cn(
-        'relative min-w-[140px] max-w-[280px] rounded-xl transition-all duration-200',
+        'relative min-w-[140px] max-w-[280px] rounded-xl transition-all duration-200 group',
         'shadow-lg hover:shadow-xl',
         selected && 'ring-2 ring-offset-2 ring-offset-background'
       )}
@@ -41,12 +58,18 @@ function SchemaNodeComponent(props: NodeProps) {
           ? `0 0 20px ${style.borderColor}80, 0 0 40px ${style.borderColor}40`
           : `0 4px 20px rgba(0, 0, 0, 0.3)`,
       }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Input Handle */}
+      {/* Input Handle - Target (accepts incoming connections) */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-3 !h-3 !bg-zinc-400 !border-2 !border-zinc-600 hover:!bg-zinc-300 transition-colors"
+        className={cn(
+          targetHandleStyles,
+          isHovered && '!scale-125'
+        )}
+        title="Drag here to connect from another node"
       />
 
       {/* Labels */}
@@ -98,11 +121,15 @@ function SchemaNodeComponent(props: NodeProps) {
         </div>
       )}
 
-      {/* Output Handle */}
+      {/* Output Handle - Source (drag from here to connect) */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-3 !h-3 !bg-zinc-400 !border-2 !border-zinc-600 hover:!bg-zinc-300 transition-colors"
+        className={cn(
+          sourceHandleStyles,
+          isHovered && '!scale-125'
+        )}
+        title="Drag from here to create a relationship"
       />
     </div>
   );

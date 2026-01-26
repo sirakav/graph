@@ -197,15 +197,15 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-zinc-900 border-zinc-800">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col bg-zinc-900 border-zinc-800">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-zinc-100 flex items-center gap-2">
             <Circle className="w-4 h-4" style={{ color: selectedColor.border }} />
             {isEditing ? 'Edit Node' : 'Create New Node'}
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh]">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-6 p-1">
             {/* Node Type Suggestions - Only show when creating new node and suggestions exist */}
             {!isEditing && nodeTypeSuggestions.length > 0 && (
@@ -293,9 +293,10 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
 
             {/* Labels */}
             <div>
-              <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3 block">
+              <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1 block">
                 Labels
               </Label>
+              <p className="text-[11px] text-zinc-600 mb-3">Optional - you can add labels later via inspector</p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {labels.map((label, index) => (
                   <Badge
@@ -402,11 +403,11 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
           </div>
         </ScrollArea>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={labels.length === 0}>
+          <Button onClick={handleSave}>
             {isEditing ? 'Save Changes' : 'Create Node'}
           </Button>
         </DialogFooter>

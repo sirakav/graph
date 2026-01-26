@@ -1,18 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { X, Circle, ArrowRight, ArrowLeft, Layers, FolderTree, Trash2, Plus, Save, Link2, ChevronRight, Network, GripVertical, ChevronDown, Tag, FileJson } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { X, Circle, ArrowRight, ArrowLeft, Layers, Trash2, Plus, Link2, ChevronRight, Network, ChevronDown, Tag, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  ResizableDrawer,
+  ResizableDrawerContent,
+  ResizableDrawerHeader,
+  ResizableDrawerTitle,
+} from '@/components/ui/resizable-drawer';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -241,45 +241,11 @@ export function NodeInspector() {
   // Connections panel state
   const [outgoingOpen, setOutgoingOpen] = useState(true);
   const [incomingOpen, setIncomingOpen] = useState(true);
-  
-  // Resizable drawer state
-  const [drawerWidth, setDrawerWidth] = useState(400);
-  const isResizing = useRef(false);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
 
   // Drawer only opens when inspectorOpen is true AND there's something selected
   // This is controlled via double-click, not automatic on selection
   const hasSelection = selectedNode !== null || selectedEdge !== null || isMultiSelection;
   const isOpen = inspectorOpen && hasSelection;
-  
-  // Handle resize
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizing.current = true;
-    startX.current = e.clientX;
-    startWidth.current = drawerWidth;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isResizing.current) return;
-      const delta = startX.current - moveEvent.clientX;
-      const newWidth = Math.min(Math.max(startWidth.current + delta, 300), 800);
-      setDrawerWidth(newWidth);
-    };
-    
-    const handleMouseUp = () => {
-      isResizing.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [drawerWidth]);
   
   // Get all edges from store
   const edges = useGraphStore((state) => state.edges);
@@ -538,26 +504,17 @@ export function NodeInspector() {
   }, [editingEdgeProperties, selectedEdge, updateEdge]);
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && closeInspector()}>
-      <SheetContent 
-        className="sm:!max-w-none bg-zinc-900 border-zinc-800 p-0" 
-        style={{ width: drawerWidth }}
+    <ResizableDrawer open={isOpen} onOpenChange={(open) => !open && closeInspector()}>
+      <ResizableDrawerContent 
+        className="bg-zinc-900 border-zinc-800 p-0"
+        defaultWidth={400}
+        minWidth={300}
+        maxWidth={800}
         showCloseButton={false}
       >
-        {/* Resize Handle */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize group z-50"
-          onMouseDown={handleResizeStart}
-        >
-          <div className="absolute inset-y-0 left-0 w-1 bg-transparent group-hover:bg-blue-500/50 group-active:bg-blue-500 transition-colors" />
-          <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 p-1 rounded bg-zinc-800 border border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity">
-            <GripVertical className="w-3 h-3 text-zinc-400" />
-          </div>
-        </div>
-        
-        <SheetHeader className="p-4 pb-0">
+        <ResizableDrawerHeader className="p-4 pb-0">
           <div className="flex items-center justify-between">
-            <SheetTitle className="text-zinc-100 flex items-center gap-2">
+            <ResizableDrawerTitle className="text-zinc-100 flex items-center gap-2">
               {isMultiSelection && (
                 <>
                   <Circle className="w-4 h-4 text-blue-400" />
@@ -580,7 +537,7 @@ export function NodeInspector() {
                   Edit Relationship
                 </>
               )}
-            </SheetTitle>
+            </ResizableDrawerTitle>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -600,7 +557,7 @@ export function NodeInspector() {
               </Button>
             </div>
           </div>
-        </SheetHeader>
+        </ResizableDrawerHeader>
 
         <ScrollArea className="h-[calc(100vh-80px)]">
           {/* Multi-Selection View */}
@@ -935,18 +892,20 @@ export function NodeInspector() {
             </div>
           )}
 
-          {/* Group Node (read-only display) */}
+          {/* Group Node Editor */}
           {!isMultiSelection && selectedNode && nodeData && nodeData.isGroup && (
             <div className="p-4 space-y-6">
+              {/* Node ID (read-only) */}
               <div>
                 <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Node ID
+                  Group ID
                 </h4>
-                <p className="text-sm font-mono text-zinc-300 bg-zinc-800 px-3 py-2 rounded">
+                <p className="text-sm font-mono text-zinc-400 bg-zinc-800 px-3 py-2 rounded">
                   {selectedNode.id}
                 </p>
               </div>
 
+              {/* Group Info */}
               <div>
                 <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
                   Group Info
@@ -962,30 +921,144 @@ export function NodeInspector() {
                 </div>
               </div>
 
-              {nodeData.labels.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                    Labels
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {nodeData.labels.map((label, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="text-sm"
-                        style={{
-                          backgroundColor: `${nodeData.style.borderColor}20`,
-                          color: nodeData.style.borderColor,
-                          borderColor: nodeData.style.borderColor,
-                          borderWidth: '1px',
-                        }}
-                      >
-                        {label}
-                      </Badge>
-                    ))}
-                  </div>
+              {/* Color Selection */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                  Color
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color.border}
+                      type="button"
+                      onClick={() => handleColorChange(color)}
+                      className={`w-7 h-7 rounded-full border-2 transition-all ${
+                        selectedColor.border === color.border
+                          ? 'ring-2 ring-offset-2 ring-offset-zinc-900 ring-white/50 scale-110'
+                          : 'hover:scale-105'
+                      }`}
+                      style={{
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                      }}
+                      title={color.name}
+                    />
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <Separator className="bg-zinc-800" />
+
+              {/* Group Name / Labels */}
+              <div>
+                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                  Group Name
+                </h4>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {editingLabels.map((label, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="text-sm gap-1 pr-1"
+                      style={{
+                        backgroundColor: `${selectedColor.border}20`,
+                        color: selectedColor.border,
+                        borderColor: selectedColor.border,
+                        borderWidth: '1px',
+                      }}
+                    >
+                      {label}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLabel(index)}
+                        className="ml-1 rounded-full p-0.5 hover:bg-white/20"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {editingLabels.length === 0 && (
+                    <span className="text-sm text-zinc-500 italic">No name</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    placeholder="Add group name..."
+                    className="bg-zinc-800 border-zinc-700 text-zinc-200 h-8 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddLabel();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleAddLabel}
+                    disabled={!newLabel.trim()}
+                    className="shrink-0 h-8 w-8"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <Separator className="bg-zinc-800" />
+
+              {/* Properties */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                    Properties
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddProperty}
+                    className="gap-1 h-7 text-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {editingProperties.map((prop, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <Input
+                        value={prop.key}
+                        onChange={(e) => handlePropertyChange(index, 'key', e.target.value)}
+                        placeholder="Key"
+                        className="bg-zinc-800 border-zinc-700 text-zinc-200 flex-1 h-8 text-sm"
+                        onBlur={handleSaveProperties}
+                      />
+                      <Input
+                        value={prop.value}
+                        onChange={(e) => handlePropertyChange(index, 'value', e.target.value)}
+                        placeholder="Value"
+                        className="bg-zinc-800 border-zinc-700 text-zinc-200 flex-1 h-8 text-sm"
+                        onBlur={handleSaveProperties}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveProperty(index)}
+                        className="shrink-0 text-zinc-500 hover:text-red-400 h-8 w-8"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {editingProperties.length === 0 && (
+                    <p className="text-sm text-zinc-500 italic">No properties</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1124,7 +1197,7 @@ export function NodeInspector() {
             </div>
           )}
         </ScrollArea>
-      </SheetContent>
+      </ResizableDrawerContent>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1158,6 +1231,6 @@ export function NodeInspector() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Sheet>
+    </ResizableDrawer>
   );
 }

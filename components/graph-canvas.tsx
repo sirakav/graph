@@ -42,6 +42,8 @@ const defaultEdgeOptions = {
     height: 20,
     color: '#6b7280',
   },
+  // Increase the invisible interaction area around edges for easier selection
+  interactionWidth: 20,
 };
 
 export function GraphCanvas() {
@@ -240,19 +242,22 @@ export function GraphCanvas() {
   );
 
   // Handle new edge connections (drag from handle to handle)
-  // Automatically creates the edge with a default type, user can edit in inspector
+  // Automatically creates the edge with a default type and opens inspector to edit
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target) {
-        addEdgeToStore({
+        const newEdgeId = addEdgeToStore({
           sourceId: connection.source,
           targetId: connection.target,
           relationshipType: 'RELATES_TO',
           properties: {},
         });
+        // Select the new edge and open inspector so user can edit the relationship type
+        selectEdge(newEdgeId);
+        openInspector();
       }
     },
-    [addEdgeToStore]
+    [addEdgeToStore, selectEdge, openInspector]
   );
 
   // Configure based on mouse mode
@@ -284,6 +289,8 @@ export function GraphCanvas() {
         connectOnClick={false}
         // Nodes are always draggable
         nodesDraggable={true}
+        // Make edges focusable for keyboard navigation and easier selection
+        edgesFocusable={true}
         // Selection mode configuration
         selectionOnDrag={isSelectMode}
         selectionMode={SelectionMode.Partial}

@@ -16,13 +16,13 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  ResizableDrawer,
+  ResizableDrawerContent,
+  ResizableDrawerDescription,
+  ResizableDrawerHeader,
+  ResizableDrawerTitle,
+  ResizableDrawerTrigger,
+} from '@/components/ui/resizable-drawer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -323,7 +323,7 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
   const handleLoad = useCallback(
     (savedGraph: SavedGraph) => {
       const { nodes, edges, graphStyle } = parseArrowGraph(savedGraph.data);
-      setGraph(nodes, edges, graphStyle);
+      setGraph(nodes, edges, graphStyle, savedGraph.id, savedGraph.name);
       setOpen(false);
     },
     [setGraph]
@@ -374,8 +374,8 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
+    <ResizableDrawer open={open} onOpenChange={setOpen}>
+      <ResizableDrawerTrigger asChild>
         {children || (
           <Button variant="outline" size="sm" className="gap-2">
             <FolderOpen className="w-4 h-4" />
@@ -387,17 +387,22 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
             )}
           </Button>
         )}
-      </SheetTrigger>
-      <SheetContent className="w-[400px] p-0">
-        <SheetHeader className="px-6 pt-6 pb-4">
-          <SheetTitle className="flex items-center gap-2">
+      </ResizableDrawerTrigger>
+      <ResizableDrawerContent 
+        className="p-0"
+        defaultWidth={400}
+        minWidth={320}
+        maxWidth={600}
+      >
+        <ResizableDrawerHeader className="px-6 pt-6 pb-4">
+          <ResizableDrawerTitle className="flex items-center gap-2">
             <Database className="w-5 h-5 text-primary" />
             Saved Graphs
-          </SheetTitle>
-          <SheetDescription>
+          </ResizableDrawerTitle>
+          <ResizableDrawerDescription>
             Your locally saved graph schemas. Click to load.
-          </SheetDescription>
-        </SheetHeader>
+          </ResizableDrawerDescription>
+        </ResizableDrawerHeader>
         
         <Separator />
 
@@ -431,7 +436,7 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
             )}
           </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </ResizableDrawerContent>
+    </ResizableDrawer>
   );
 }

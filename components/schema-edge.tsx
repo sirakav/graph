@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -8,6 +8,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import type { SchemaEdge, SchemaEdgeData } from '@/lib/arrow-parser';
+import { useGraphStore } from '@/lib/graph-store';
 import { cn } from '@/lib/utils';
 
 function SchemaEdgeComponent({
@@ -22,6 +23,9 @@ function SchemaEdgeComponent({
   selected,
   markerEnd,
 }: EdgeProps<SchemaEdge>) {
+  const selectEdge = useGraphStore((state) => state.selectEdge);
+  const openInspector = useGraphStore((state) => state.openInspector);
+  
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -33,6 +37,13 @@ function SchemaEdgeComponent({
 
   const edgeData = data as SchemaEdgeData | undefined;
   const relationshipType = edgeData?.relationshipType || '';
+
+  // Handle label click - select edge and open inspector
+  const handleLabelClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectEdge(id);
+    openInspector();
+  }, [id, selectEdge, openInspector]);
 
   return (
     <>
@@ -50,16 +61,18 @@ function SchemaEdgeComponent({
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'absolute pointer-events-all nodrag nopan',
+              'absolute pointer-events-auto nodrag nopan cursor-pointer z-50',
               'px-2 py-1 rounded-md text-xs font-mono font-medium',
               'transition-all duration-200',
               selected
                 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
-                : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700'
+                : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700 hover:bg-zinc-700/90 hover:border-zinc-600'
             )}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
+            onClick={handleLabelClick}
+            title="Click to edit relationship"
           >
             {relationshipType}
           </div>

@@ -25,6 +25,11 @@ interface GraphState {
   edges: SchemaEdge[];
   graphStyle: ArrowGraphStyle;
   
+  // Current saved graph tracking
+  currentSavedGraphId: string | null;
+  currentSavedGraphName: string | null;
+  hasUnsavedChanges: boolean;
+  
   // Selection state (supports multi-selection)
   selectedNodeIds: string[];
   selectedEdgeId: string | null;
@@ -40,7 +45,10 @@ interface GraphState {
   showGroups: boolean;
   
   // Actions
-  setGraph: (nodes: GraphNode[], edges: SchemaEdge[], style: ArrowGraphStyle) => void;
+  setGraph: (nodes: GraphNode[], edges: SchemaEdge[], style: ArrowGraphStyle, savedGraphId?: string | null, savedGraphName?: string | null) => void;
+  setCurrentSavedGraph: (id: string | null, name: string | null) => void;
+  markAsSaved: () => void;
+  markAsUnsaved: () => void;
   setNodes: (nodes: GraphNode[]) => void;
   setEdges: (edges: SchemaEdge[]) => void;
   updateNodePositions: (updates: { id: string; position: { x: number; y: number } }[]) => void;
@@ -82,6 +90,9 @@ export const useGraphStore = create<GraphState>((set) => ({
   nodes: [],
   edges: [],
   graphStyle: {},
+  currentSavedGraphId: null,
+  currentSavedGraphName: null,
+  hasUnsavedChanges: false,
   selectedNodeIds: [],
   selectedEdgeId: null,
   inspectorOpen: false,
@@ -90,18 +101,31 @@ export const useGraphStore = create<GraphState>((set) => ({
   showGroups: true,
   
   // Actions
-  setGraph: (nodes, edges, style) => set({
+  setGraph: (nodes, edges, style, savedGraphId = null, savedGraphName = null) => set({
     nodes,
     edges,
     graphStyle: style,
+    currentSavedGraphId: savedGraphId,
+    currentSavedGraphName: savedGraphName,
+    hasUnsavedChanges: false,
     selectedNodeIds: [],
     selectedEdgeId: null,
     inspectorOpen: false,
   }),
   
-  setNodes: (nodes) => set({ nodes }),
+  setCurrentSavedGraph: (id, name) => set({
+    currentSavedGraphId: id,
+    currentSavedGraphName: name,
+    hasUnsavedChanges: false,
+  }),
   
-  setEdges: (edges) => set({ edges }),
+  markAsSaved: () => set({ hasUnsavedChanges: false }),
+  
+  markAsUnsaved: () => set({ hasUnsavedChanges: true }),
+  
+  setNodes: (nodes) => set({ nodes, hasUnsavedChanges: true }),
+  
+  setEdges: (edges) => set({ edges, hasUnsavedChanges: true }),
   
   updateNodePositions: (updates) => set((state) => {
     const nodeMap = new Map(updates.map(u => [u.id, u.position]));
@@ -113,6 +137,7 @@ export const useGraphStore = create<GraphState>((set) => ({
         }
         return node;
       }),
+      hasUnsavedChanges: true,
     };
   }),
   
@@ -180,6 +205,9 @@ export const useGraphStore = create<GraphState>((set) => ({
     nodes: [],
     edges: [],
     graphStyle: {},
+    currentSavedGraphId: null,
+    currentSavedGraphName: null,
+    hasUnsavedChanges: false,
     selectedNodeIds: [],
     selectedEdgeId: null,
     inspectorOpen: false,
@@ -209,6 +237,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       nodes: [...state.nodes, newNode],
       selectedNodeIds: [id],
       selectedEdgeId: null,
+      hasUnsavedChanges: true,
     }));
     
     return id;
@@ -235,12 +264,14 @@ export const useGraphStore = create<GraphState>((set) => ({
         },
       };
     }),
+    hasUnsavedChanges: true,
   })),
   
   deleteNode: (nodeId) => set((state) => ({
     nodes: state.nodes.filter((n) => n.id !== nodeId),
     edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
     selectedNodeIds: state.selectedNodeIds.filter(id => id !== nodeId),
+    hasUnsavedChanges: true,
   })),
   
   deleteSelectedNodes: () => set((state) => {
@@ -249,6 +280,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       nodes: state.nodes.filter((n) => !selectedSet.has(n.id)),
       edges: state.edges.filter((e) => !selectedSet.has(e.source) && !selectedSet.has(e.target)),
       selectedNodeIds: [],
+      hasUnsavedChanges: true,
     };
   }),
   
@@ -270,6 +302,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       edges: [...state.edges, newEdge],
       selectedNodeIds: [],
       selectedEdgeId: id,
+      hasUnsavedChanges: true,
     }));
     
     return id;
@@ -289,11 +322,13 @@ export const useGraphStore = create<GraphState>((set) => ({
         },
       };
     }),
+    hasUnsavedChanges: true,
   })),
   
   deleteEdge: (edgeId) => set((state) => ({
     edges: state.edges.filter((e) => e.id !== edgeId),
     selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
+    hasUnsavedChanges: true,
   })),
   
   // Group selected nodes into a new group
@@ -371,6 +406,7 @@ export const useGraphStore = create<GraphState>((set) => ({
     set({
       nodes: [groupNode, ...updatedNodes],
       selectedNodeIds: [groupId],
+      hasUnsavedChanges: true,
     });
     
     return groupId;
@@ -413,6 +449,7 @@ export const useGraphStore = create<GraphState>((set) => ({
     return {
       nodes: updatedNodes,
       selectedNodeIds: Array.from(childIds),
+      hasUnsavedChanges: true,
     };
   }),
 }));
@@ -421,6 +458,9 @@ export const useGraphStore = create<GraphState>((set) => ({
 export const useNodes = () => useGraphStore((state) => state.nodes);
 export const useEdges = () => useGraphStore((state) => state.edges);
 export const useGraphStyle = () => useGraphStore((state) => state.graphStyle);
+export const useCurrentSavedGraphId = () => useGraphStore((state) => state.currentSavedGraphId);
+export const useCurrentSavedGraphName = () => useGraphStore((state) => state.currentSavedGraphName);
+export const useHasUnsavedChanges = () => useGraphStore((state) => state.hasUnsavedChanges);
 export const useSelectedNodeIds = () => useGraphStore((state) => state.selectedNodeIds);
 export const useSelectedEdgeId = () => useGraphStore((state) => state.selectedEdgeId);
 export const useInspectorOpen = () => useGraphStore((state) => state.inspectorOpen);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Upload, Download, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus } from 'lucide-react';
+import { Upload, Download, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus, Layers, FilePlus2, Save } from 'lucide-react';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ImportDialog } from '@/components/import-dialog';
 import { ExportDialog } from '@/components/export-dialog';
@@ -11,10 +11,21 @@ import { NodeInspector } from '@/components/node-inspector';
 import { SavedGraphsPanel } from '@/components/saved-graphs-panel';
 import { EditToolbar } from '@/components/edit-toolbar';
 import { NodeEditorDialog } from '@/components/node-editor-dialog';
+import { SchemaExplorer } from '@/components/schema-explorer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Empty,
   EmptyHeader,
@@ -23,6 +34,17 @@ import {
   EmptyDescription,
   EmptyContent,
 } from '@/components/ui/empty';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogMedia,
+} from '@/components/ui/alert-dialog';
 import { useGraphStore } from '@/lib/graph-store';
 import { useSavedGraphsStore } from '@/lib/saved-graphs-store';
 import { parseArrowGraph, parseArrowGraphFromJSON, type ArrowGraph } from '@/lib/arrow-parser';
@@ -38,14 +60,24 @@ export default function Home() {
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const graphStyle = useGraphStore((state) => state.graphStyle);
+  const currentSavedGraphId = useGraphStore((state) => state.currentSavedGraphId);
+  const currentSavedGraphName = useGraphStore((state) => state.currentSavedGraphName);
+  const hasUnsavedChanges = useGraphStore((state) => state.hasUnsavedChanges);
   const setGraph = useGraphStore((state) => state.setGraph);
+  const clearGraph = useGraphStore((state) => state.clearGraph);
+  const markAsSaved = useGraphStore((state) => state.markAsSaved);
+  const setCurrentSavedGraph = useGraphStore((state) => state.setCurrentSavedGraph);
   const savedGraphs = useSavedGraphsStore((state) => state.savedGraphs);
   const saveGraph = useSavedGraphsStore((state) => state.saveGraph);
+  const updateSavedGraph = useSavedGraphsStore((state) => state.updateGraph);
   
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [urlTooLong, setUrlTooLong] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [newGraphDialogOpen, setNewGraphDialogOpen] = useState(false);
+  const [clearGraphDialogOpen, setClearGraphDialogOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveGraphName, setSaveGraphName] = useState('');
 
   // Reconstruct ArrowGraph from current state for sharing
   const getCurrentArrowGraph = useCallback((): ArrowGraph | null => {
@@ -103,6 +135,34 @@ export default function Home() {
       setTimeout(() => setShareStatus('idle'), 2000);
     }
   }, [getCurrentArrowGraph]);
+
+  // Handle saving the current graph
+  const handleSave = useCallback(() => {
+    const arrowGraph = getCurrentArrowGraph();
+    if (!arrowGraph) return;
+
+    // If we have a current saved graph, update it directly
+    if (currentSavedGraphId) {
+      updateSavedGraph(currentSavedGraphId, { data: arrowGraph });
+      markAsSaved();
+      return;
+    }
+
+    // Otherwise, open dialog to save as new
+    setSaveGraphName('');
+    setSaveDialogOpen(true);
+  }, [getCurrentArrowGraph, currentSavedGraphId, updateSavedGraph, markAsSaved]);
+
+  // Handle saving as a new graph with a name
+  const handleSaveAs = useCallback(() => {
+    const arrowGraph = getCurrentArrowGraph();
+    if (!arrowGraph || !saveGraphName.trim()) return;
+
+    const newId = saveGraph(saveGraphName.trim(), arrowGraph);
+    setCurrentSavedGraph(newId, saveGraphName.trim());
+    setSaveDialogOpen(false);
+    setSaveGraphName('');
+  }, [getCurrentArrowGraph, saveGraphName, saveGraph, setCurrentSavedGraph]);
 
   // Single initialization effect to handle URL loading and demo fallback
   // This avoids race conditions between separate effects
@@ -165,9 +225,60 @@ export default function Home() {
               </span>
             </div>
             <Badge variant="outline" className="text-[10px]">Beta</Badge>
+            {currentSavedGraphName && (
+              <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground border-l pl-3">
+                <span className="truncate max-w-[200px]">{currentSavedGraphName}</span>
+                {hasUnsavedChanges && (
+                  <span className="text-amber-500 text-xs">•&nbsp;Unsaved</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Save Button - only shows when a graph exists */}
+            {hasGraph && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={hasUnsavedChanges ? "default" : "outline"} 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={handleSave}
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">
+                      {currentSavedGraphId ? 'Save' : 'Save As'}
+                    </span>
+                    {hasUnsavedChanges && (
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {currentSavedGraphId 
+                    ? `Save changes to "${currentSavedGraphName}"` 
+                    : 'Save graph to library'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {/* New Graph Button - only shows when a graph exists */}
+            {hasGraph && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => setClearGraphDialogOpen(true)}
+                  >
+                    <FilePlus2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">New Graph</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Create a new empty graph</TooltipContent>
+              </Tooltip>
+            )}
             <SavedGraphsPanel>
               <Button variant="outline" size="sm" className="gap-2">
                 <FolderOpen className="w-4 h-4" />
@@ -179,6 +290,12 @@ export default function Home() {
                 )}
               </Button>
             </SavedGraphsPanel>
+            <SchemaExplorer>
+              <Button variant="outline" size="sm" className="gap-2" disabled={nodes.length === 0}>
+                <Layers className="w-4 h-4" />
+                <span className="hidden sm:inline">Schema</span>
+              </Button>
+            </SchemaExplorer>
             <ImportDialog>
               <Button variant="outline" size="sm" className="gap-2">
                 <Upload className="w-4 h-4" />
@@ -323,6 +440,72 @@ export default function Home() {
           open={newGraphDialogOpen}
           onOpenChange={setNewGraphDialogOpen}
         />
+
+        {/* Clear Graph Confirmation Dialog */}
+        <AlertDialog open={clearGraphDialogOpen} onOpenChange={setClearGraphDialogOpen}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogMedia className="bg-primary/10">
+                <FilePlus2 className="text-primary" />
+              </AlertDialogMedia>
+              <AlertDialogTitle>Create New Graph?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will clear the current graph. Make sure to save or export your work first if needed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  clearGraph();
+                  setClearGraphDialogOpen(false);
+                }}
+              >
+                Create New
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Save As Dialog */}
+        <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Save className="w-5 h-5 text-primary" />
+                Save Graph
+              </DialogTitle>
+              <DialogDescription>
+                Give your graph a name to save it to your library.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="graph-name">Graph Name</Label>
+                <Input
+                  id="graph-name"
+                  placeholder="My Graph Schema"
+                  value={saveGraphName}
+                  onChange={(e) => setSaveGraphName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && saveGraphName.trim()) {
+                      handleSaveAs();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveAs} disabled={!saveGraphName.trim()}>
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ReactFlowProvider>
   );

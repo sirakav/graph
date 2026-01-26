@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { X, Circle, ArrowRight, Layers, FolderTree, Trash2, Plus, Save } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { X, Circle, ArrowRight, ArrowLeft, Layers, FolderTree, Trash2, Plus, Save, Link2, ChevronRight, Network, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -23,8 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { useGraphStore, useSelectedNode, useSelectedEdge } from '@/lib/graph-store';
-import type { SchemaNodeData, SchemaEdgeData } from '@/lib/arrow-parser';
+import type { SchemaNodeData, SchemaEdgeData, SchemaEdge, GraphNode } from '@/lib/arrow-parser';
 
 const COLOR_PRESETS = [
   { border: '#4C8EDA', bg: '#4C8EDA20', name: 'Blue' },
@@ -58,8 +63,111 @@ export function NodeInspector() {
   // Edge editing state
   const [editingRelationType, setEditingRelationType] = useState('');
   const [editingEdgeProperties, setEditingEdgeProperties] = useState<{ key: string; value: string }[]>([]);
+  
+  // Connections panel state
+  const [outgoingOpen, setOutgoingOpen] = useState(true);
+  const [incomingOpen, setIncomingOpen] = useState(true);
+  
+  // Resizable drawer state
+  const [drawerWidth, setDrawerWidth] = useState(400);
+  const isResizing = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
 
   const isOpen = selectedNode !== null || selectedEdge !== null;
+  
+  // Handle resize
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    startX.current = e.clientX;
+    startWidth.current = drawerWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return;
+      const delta = startX.current - moveEvent.clientX;
+      const newWidth = Math.min(Math.max(startWidth.current + delta, 300), 800);
+      setDrawerWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [drawerWidth]);
+  
+  // Get all edges from store
+  const edges = useGraphStore((state) => state.edges);
+  const selectEdge = useGraphStore((state) => state.selectEdge);
+  const selectNode = useGraphStore((state) => state.selectNode);
+  
+  // Compute connected relationships for the selected node
+  const connectedRelationships = useMemo(() => {
+    if (!selectedNode) return { outgoing: [], incoming: [] };
+    
+    const outgoing: Array<{
+      edge: SchemaEdge;
+      targetNode: GraphNode | undefined;
+      relationshipType: string;
+    }> = [];
+    
+    const incoming: Array<{
+      edge: SchemaEdge;
+      sourceNode: GraphNode | undefined;
+      relationshipType: string;
+    }> = [];
+    
+    edges.forEach((edge) => {
+      const edgeData = edge.data as SchemaEdgeData | undefined;
+      const relType = edgeData?.relationshipType || 'RELATES_TO';
+      
+      if (edge.source === selectedNode.id) {
+        outgoing.push({
+          edge,
+          targetNode: nodes.find((n) => n.id === edge.target),
+          relationshipType: relType,
+        });
+      }
+      
+      if (edge.target === selectedNode.id) {
+        incoming.push({
+          edge,
+          sourceNode: nodes.find((n) => n.id === edge.source),
+          relationshipType: relType,
+        });
+      }
+    });
+    
+    return { outgoing, incoming };
+  }, [selectedNode, edges, nodes]);
+  
+  // Group relationships by type for better visualization
+  const groupedRelationships = useMemo(() => {
+    const outgoingByType = new Map<string, typeof connectedRelationships.outgoing>();
+    const incomingByType = new Map<string, typeof connectedRelationships.incoming>();
+    
+    connectedRelationships.outgoing.forEach((rel) => {
+      const existing = outgoingByType.get(rel.relationshipType) || [];
+      existing.push(rel);
+      outgoingByType.set(rel.relationshipType, existing);
+    });
+    
+    connectedRelationships.incoming.forEach((rel) => {
+      const existing = incomingByType.get(rel.relationshipType) || [];
+      existing.push(rel);
+      incomingByType.set(rel.relationshipType, existing);
+    });
+    
+    return { outgoingByType, incomingByType };
+  }, [connectedRelationships]);
 
   // Get connected nodes for edge
   const sourceNode = selectedEdge
@@ -252,7 +360,22 @@ export function NodeInspector() {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && clearSelection()}>
-      <SheetContent className="w-[400px] bg-zinc-900 border-zinc-800 p-0">
+      <SheetContent 
+        className="sm:!max-w-none bg-zinc-900 border-zinc-800 p-0" 
+        style={{ width: drawerWidth }}
+        showCloseButton={false}
+      >
+        {/* Resize Handle */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize group z-50"
+          onMouseDown={handleResizeStart}
+        >
+          <div className="absolute inset-y-0 left-0 w-1 bg-transparent group-hover:bg-blue-500/50 group-active:bg-blue-500 transition-colors" />
+          <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 p-1 rounded bg-zinc-800 border border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical className="w-3 h-3 text-zinc-400" />
+          </div>
+        </div>
+        
         <SheetHeader className="p-4 pb-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-zinc-100 flex items-center gap-2">
@@ -447,28 +570,145 @@ export function NodeInspector() {
                 </div>
               </div>
 
-              <Separator className="bg-zinc-800" />
+              {/* Connections Section */}
+              {(connectedRelationships.outgoing.length > 0 || connectedRelationships.incoming.length > 0) && (
+                <>
+                  <Separator className="bg-zinc-800" />
+                  
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Network className="w-4 h-4 text-zinc-400" />
+                      <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                        Connections
+                      </h4>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                        {connectedRelationships.outgoing.length + connectedRelationships.incoming.length}
+                      </Badge>
+                    </div>
 
-              {/* Position (read-only) */}
-              <div>
-                <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Position
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-zinc-800 rounded-lg p-2">
-                    <div className="text-xs text-zinc-500 mb-1">X</div>
-                    <div className="text-sm font-mono text-zinc-300">
-                      {Math.round(selectedNode.position.x)}
-                    </div>
+                    {/* Outgoing Relationships */}
+                    {connectedRelationships.outgoing.length > 0 && (
+                      <Collapsible open={outgoingOpen} onOpenChange={setOutgoingOpen} className="mb-3">
+                        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                          <ChevronRight className={`w-3 h-3 text-zinc-500 transition-transform ${outgoingOpen ? 'rotate-90' : ''}`} />
+                          <ArrowRight className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-xs font-medium text-zinc-300">Outgoing</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-500/30 text-emerald-400">
+                            {connectedRelationships.outgoing.length}
+                          </Badge>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-1.5 pl-5">
+                          {Array.from(groupedRelationships.outgoingByType.entries()).map(([relType, rels]) => (
+                            <div key={relType} className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider">
+                                <Link2 className="w-3 h-3" />
+                                {relType}
+                              </div>
+                              {rels.map((rel) => {
+                                const targetData = rel.targetNode?.data as SchemaNodeData | undefined;
+                                return (
+                                  <button
+                                    key={rel.edge.id}
+                                    onClick={() => selectNode(rel.edge.target)}
+                                    className="flex items-center gap-2 w-full p-2 rounded-md bg-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
+                                  >
+                                    <ArrowRight className="w-3 h-3 text-zinc-600 shrink-0" />
+                                    {targetData && (
+                                      <div
+                                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: targetData.style?.borderColor || '#4C8EDA' }}
+                                      />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-medium text-zinc-200 truncate">
+                                          {targetData?.labels?.[0] || rel.edge.target}
+                                        </span>
+                                      </div>
+                                      {targetData?.labels?.[0] && (
+                                        <span className="text-[10px] text-zinc-500 font-mono truncate block">
+                                          {rel.edge.target}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <ChevronRight className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+
+                    {/* Incoming Relationships */}
+                    {connectedRelationships.incoming.length > 0 && (
+                      <Collapsible open={incomingOpen} onOpenChange={setIncomingOpen}>
+                        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+                          <ChevronRight className={`w-3 h-3 text-zinc-500 transition-transform ${incomingOpen ? 'rotate-90' : ''}`} />
+                          <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-xs font-medium text-zinc-300">Incoming</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-500/30 text-amber-400">
+                            {connectedRelationships.incoming.length}
+                          </Badge>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-1.5 pl-5">
+                          {Array.from(groupedRelationships.incomingByType.entries()).map(([relType, rels]) => (
+                            <div key={relType} className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider">
+                                <Link2 className="w-3 h-3" />
+                                {relType}
+                              </div>
+                              {rels.map((rel) => {
+                                const sourceData = rel.sourceNode?.data as SchemaNodeData | undefined;
+                                return (
+                                  <button
+                                    key={rel.edge.id}
+                                    onClick={() => selectNode(rel.edge.source)}
+                                    className="flex items-center gap-2 w-full p-2 rounded-md bg-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
+                                  >
+                                    <ArrowLeft className="w-3 h-3 text-zinc-600 shrink-0" />
+                                    {sourceData && (
+                                      <div
+                                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: sourceData.style?.borderColor || '#4C8EDA' }}
+                                      />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-medium text-zinc-200 truncate">
+                                          {sourceData?.labels?.[0] || rel.edge.source}
+                                        </span>
+                                      </div>
+                                      {sourceData?.labels?.[0] && (
+                                        <span className="text-[10px] text-zinc-500 font-mono truncate block">
+                                          {rel.edge.source}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <ChevronRight className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
                   </div>
-                  <div className="bg-zinc-800 rounded-lg p-2">
-                    <div className="text-xs text-zinc-500 mb-1">Y</div>
-                    <div className="text-sm font-mono text-zinc-300">
-                      {Math.round(selectedNode.position.y)}
-                    </div>
+                </>
+              )}
+
+              {/* No connections message */}
+              {connectedRelationships.outgoing.length === 0 && connectedRelationships.incoming.length === 0 && (
+                <>
+                  <Separator className="bg-zinc-800" />
+                  <div className="flex items-center gap-2 text-zinc-500">
+                    <Network className="w-4 h-4" />
+                    <span className="text-xs">No connections</span>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
 

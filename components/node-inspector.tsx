@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { X, Circle, ArrowRight, ArrowLeft, Layers, FolderTree, Trash2, Plus, Save, Link2, ChevronRight, Network, GripVertical } from 'lucide-react';
+import { X, Circle, ArrowRight, ArrowLeft, Layers, FolderTree, Trash2, Plus, Save, Link2, ChevronRight, Network, GripVertical, ChevronDown, Tag, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,173 @@ const COLOR_PRESETS = [
   { border: '#DA4C9A', bg: '#DA4C9A20', name: 'Pink' },
   { border: '#9ADA4C', bg: '#9ADA4C20', name: 'Lime' },
 ];
+
+// Helper function to format property values for display
+function formatPropertyValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.join(', ');
+  return JSON.stringify(value);
+}
+
+// Component for displaying related node data in an expandable card
+interface RelatedNodeCardProps {
+  nodeId: string;
+  nodeData: SchemaNodeData | undefined;
+  edgeProperties: Record<string, unknown>;
+  hasEdgeProps: boolean;
+  hasNodeProps: boolean;
+  direction: 'incoming' | 'outgoing';
+  onNavigate: () => void;
+}
+
+function RelatedNodeCard({
+  nodeId,
+  nodeData,
+  edgeProperties,
+  hasEdgeProps,
+  hasNodeProps,
+  direction,
+  onNavigate,
+}: RelatedNodeCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const nodeLabels = nodeData?.labels || [];
+  const nodeProperties = nodeData?.properties || {};
+  const borderColor = nodeData?.style?.borderColor || '#4C8EDA';
+  
+  return (
+    <div className="rounded-lg border border-zinc-700/50 overflow-hidden bg-zinc-800/30">
+      {/* Header - clickable to expand/collapse */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setIsExpanded(!isExpanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        className="flex items-center gap-2 w-full p-2.5 hover:bg-zinc-800/50 transition-colors text-left cursor-pointer"
+      >
+        <ChevronDown 
+          className={`w-3 h-3 text-zinc-500 transition-transform shrink-0 ${isExpanded ? '' : '-rotate-90'}`} 
+        />
+        {direction === 'outgoing' ? (
+          <ArrowRight className="w-3 h-3 text-zinc-600 shrink-0" />
+        ) : (
+          <ArrowLeft className="w-3 h-3 text-zinc-600 shrink-0" />
+        )}
+        <div
+          className="w-2.5 h-2.5 rounded-full shrink-0"
+          style={{ backgroundColor: borderColor }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-zinc-200 truncate">
+              {nodeLabels[0] || nodeId}
+            </span>
+            {(hasNodeProps || hasEdgeProps) && (
+              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 bg-zinc-700/50">
+                {Object.keys(nodeProperties).length + Object.keys(edgeProperties).length} props
+              </Badge>
+            )}
+          </div>
+          {nodeLabels[0] && (
+            <span className="text-[10px] text-zinc-500 font-mono truncate block">
+              {nodeId}
+            </span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-zinc-500 hover:text-zinc-200"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigate();
+          }}
+          title="Navigate to node"
+        >
+          <ChevronRight className="w-3 h-3" />
+        </Button>
+      </div>
+
+      {/* Expanded content - Related node data */}
+      {isExpanded && (
+        <div className="border-t border-zinc-700/50 p-3 space-y-3">
+          {/* Labels */}
+          {nodeLabels.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+                <Tag className="w-3 h-3" />
+                Labels
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {nodeLabels.map((label, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 h-5"
+                    style={{
+                      borderColor: `${borderColor}50`,
+                      color: borderColor,
+                      backgroundColor: `${borderColor}10`,
+                    }}
+                  >
+                    {label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Node Properties */}
+          {hasNodeProps && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+                <FileJson className="w-3 h-3" />
+                Node Properties
+              </div>
+              <div className="space-y-1 bg-zinc-900/50 rounded-md p-2">
+                {Object.entries(nodeProperties).map(([key, value]) => (
+                  <div key={key} className="flex items-start gap-2 text-[11px]">
+                    <span className="text-zinc-400 font-medium shrink-0">{key}:</span>
+                    <span className="text-zinc-300 break-all">{formatPropertyValue(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Edge Properties */}
+          {hasEdgeProps && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+                <Link2 className="w-3 h-3" />
+                Relationship Properties
+              </div>
+              <div className="space-y-1 bg-zinc-900/50 rounded-md p-2">
+                {Object.entries(edgeProperties).map(([key, value]) => (
+                  <div key={key} className="flex items-start gap-2 text-[11px]">
+                    <span className="text-zinc-400 font-medium shrink-0">{key}:</span>
+                    <span className="text-zinc-300 break-all">{formatPropertyValue(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!hasNodeProps && !hasEdgeProps && nodeLabels.length === 0 && (
+            <p className="text-xs text-zinc-500 italic">No additional data</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function NodeInspector() {
   const selectedNode = useSelectedNode();
@@ -646,7 +813,7 @@ export function NodeInspector() {
                 </div>
               </div>
 
-              {/* Connections Section */}
+              {/* Connections Section with Related Node Data */}
               {(connectedRelationships.outgoing.length > 0 || connectedRelationships.incoming.length > 0) && (
                 <>
                   <Separator className="bg-zinc-800" />
@@ -655,7 +822,7 @@ export function NodeInspector() {
                     <div className="flex items-center gap-2 mb-4">
                       <Network className="w-4 h-4 text-zinc-400" />
                       <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                        Connections
+                        Connections & Related Data
                       </h4>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                         {connectedRelationships.outgoing.length + connectedRelationships.incoming.length}
@@ -673,42 +840,32 @@ export function NodeInspector() {
                             {connectedRelationships.outgoing.length}
                           </Badge>
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-1.5 pl-5">
+                        <CollapsibleContent className="mt-2 space-y-2 pl-5">
                           {Array.from(groupedRelationships.outgoingByType.entries()).map(([relType, rels]) => (
-                            <div key={relType} className="space-y-1">
+                            <div key={relType} className="space-y-2">
                               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider">
                                 <Link2 className="w-3 h-3" />
                                 {relType}
                               </div>
                               {rels.map((rel) => {
                                 const targetData = rel.targetNode?.data as SchemaNodeData | undefined;
+                                const edgeData = rel.edge.data as SchemaEdgeData | undefined;
+                                const edgeProperties = edgeData?.properties || {};
+                                const hasEdgeProps = Object.keys(edgeProperties).length > 0;
+                                const targetProperties = targetData?.properties || {};
+                                const hasTargetProps = Object.keys(targetProperties).length > 0;
+                                
                                 return (
-                                  <button
+                                  <RelatedNodeCard
                                     key={rel.edge.id}
-                                    onClick={() => selectNode(rel.edge.target)}
-                                    className="flex items-center gap-2 w-full p-2 rounded-md bg-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
-                                  >
-                                    <ArrowRight className="w-3 h-3 text-zinc-600 shrink-0" />
-                                    {targetData && (
-                                      <div
-                                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                                        style={{ backgroundColor: targetData.style?.borderColor || '#4C8EDA' }}
-                                      />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-medium text-zinc-200 truncate">
-                                          {targetData?.labels?.[0] || rel.edge.target}
-                                        </span>
-                                      </div>
-                                      {targetData?.labels?.[0] && (
-                                        <span className="text-[10px] text-zinc-500 font-mono truncate block">
-                                          {rel.edge.target}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ChevronRight className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                                  </button>
+                                    nodeId={rel.edge.target}
+                                    nodeData={targetData}
+                                    edgeProperties={edgeProperties}
+                                    hasEdgeProps={hasEdgeProps}
+                                    hasNodeProps={hasTargetProps}
+                                    direction="outgoing"
+                                    onNavigate={() => selectNode(rel.edge.target)}
+                                  />
                                 );
                               })}
                             </div>
@@ -728,42 +885,32 @@ export function NodeInspector() {
                             {connectedRelationships.incoming.length}
                           </Badge>
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-1.5 pl-5">
+                        <CollapsibleContent className="mt-2 space-y-2 pl-5">
                           {Array.from(groupedRelationships.incomingByType.entries()).map(([relType, rels]) => (
-                            <div key={relType} className="space-y-1">
+                            <div key={relType} className="space-y-2">
                               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider">
                                 <Link2 className="w-3 h-3" />
                                 {relType}
                               </div>
                               {rels.map((rel) => {
                                 const sourceData = rel.sourceNode?.data as SchemaNodeData | undefined;
+                                const edgeData = rel.edge.data as SchemaEdgeData | undefined;
+                                const edgeProperties = edgeData?.properties || {};
+                                const hasEdgeProps = Object.keys(edgeProperties).length > 0;
+                                const sourceProperties = sourceData?.properties || {};
+                                const hasSourceProps = Object.keys(sourceProperties).length > 0;
+                                
                                 return (
-                                  <button
+                                  <RelatedNodeCard
                                     key={rel.edge.id}
-                                    onClick={() => selectNode(rel.edge.source)}
-                                    className="flex items-center gap-2 w-full p-2 rounded-md bg-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
-                                  >
-                                    <ArrowLeft className="w-3 h-3 text-zinc-600 shrink-0" />
-                                    {sourceData && (
-                                      <div
-                                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                                        style={{ backgroundColor: sourceData.style?.borderColor || '#4C8EDA' }}
-                                      />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-medium text-zinc-200 truncate">
-                                          {sourceData?.labels?.[0] || rel.edge.source}
-                                        </span>
-                                      </div>
-                                      {sourceData?.labels?.[0] && (
-                                        <span className="text-[10px] text-zinc-500 font-mono truncate block">
-                                          {rel.edge.source}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ChevronRight className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                                  </button>
+                                    nodeId={rel.edge.source}
+                                    nodeData={sourceData}
+                                    edgeProperties={edgeProperties}
+                                    hasEdgeProps={hasEdgeProps}
+                                    hasNodeProps={hasSourceProps}
+                                    direction="incoming"
+                                    onNavigate={() => selectNode(rel.edge.source)}
+                                  />
                                 );
                               })}
                             </div>

@@ -12,6 +12,8 @@ import {
   MoreHorizontal,
   FileJson,
   Database,
+  Share2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Sheet,
@@ -60,6 +62,7 @@ import {
 import { useSavedGraphsStore, type SavedGraph } from '@/lib/saved-graphs-store';
 import { parseArrowGraph } from '@/lib/arrow-parser';
 import { useGraphStore } from '@/lib/graph-store';
+import { createShareableUrl, isGraphTooLargeForUrl } from '@/lib/url-share';
 
 interface SavedGraphItemProps {
   graph: SavedGraph;
@@ -67,12 +70,16 @@ interface SavedGraphItemProps {
   onRename: (id: string, name: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  onShare: (graph: SavedGraph) => void;
+  shareStatus: { id: string; status: 'copied' | 'error' | 'too-large' } | null;
 }
 
-function SavedGraphItem({ graph, onLoad, onRename, onDuplicate, onDelete }: SavedGraphItemProps) {
+function SavedGraphItem({ graph, onLoad, onRename, onDuplicate, onDelete, onShare, shareStatus }: SavedGraphItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(graph.name);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
+  const isShareActive = shareStatus?.id === graph.id;
 
   const handleSaveEdit = () => {
     if (editName.trim()) {
@@ -198,6 +205,30 @@ function SavedGraphItem({ graph, onLoad, onRename, onDuplicate, onDelete }: Save
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
+                          onShare(graph);
+                        }}
+                      >
+                        {isShareActive && shareStatus?.status === 'copied' ? (
+                          <>
+                            <Check className="w-4 h-4 text-green-500" />
+                            Copied!
+                          </>
+                        ) : isShareActive && shareStatus?.status === 'too-large' ? (
+                          <>
+                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                            Too large
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="w-4 h-4" />
+                            Share link
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setEditName(graph.name);
                           setIsEditing(true);
                         }}
@@ -280,6 +311,7 @@ interface SavedGraphsPanelProps {
 
 export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
   const [open, setOpen] = useState(false);
+  const [shareStatus, setShareStatus] = useState<{ id: string; status: 'copied' | 'error' | 'too-large' } | null>(null);
   
   const savedGraphs = useSavedGraphsStore((state) => state.savedGraphs);
   const updateGraph = useSavedGraphsStore((state) => state.updateGraph);
@@ -316,6 +348,29 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
       deleteGraph(id);
     },
     [deleteGraph]
+  );
+
+  const handleShare = useCallback(
+    async (savedGraph: SavedGraph) => {
+      // Check if too large
+      if (isGraphTooLargeForUrl(savedGraph.data)) {
+        setShareStatus({ id: savedGraph.id, status: 'too-large' });
+        setTimeout(() => setShareStatus(null), 2500);
+        return;
+      }
+      
+      try {
+        const url = createShareableUrl(savedGraph.data);
+        await navigator.clipboard.writeText(url);
+        setShareStatus({ id: savedGraph.id, status: 'copied' });
+        setTimeout(() => setShareStatus(null), 2000);
+      } catch (error) {
+        console.error('Failed to copy share URL:', error);
+        setShareStatus({ id: savedGraph.id, status: 'error' });
+        setTimeout(() => setShareStatus(null), 2000);
+      }
+    },
+    []
   );
 
   return (
@@ -369,6 +424,8 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
                   onRename={handleRename}
                   onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
+                  onShare={handleShare}
+                  shareStatus={shareStatus}
                 />
               ))
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -8,6 +8,7 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type NodeTypes,
   type EdgeTypes,
   type Node,
@@ -48,6 +49,9 @@ export function GraphCanvas() {
   const selectEdge = useGraphStore((state) => state.selectEdge);
   const clearSelection = useGraphStore((state) => state.clearSelection);
   const showGroups = useGraphStore((state) => state.showGroups);
+  
+  const { fitView } = useReactFlow();
+  const prevNodeIdsRef = useRef<string>('');
 
   // Filter out group nodes when showGroups is false
   // Also remove parentId from child nodes to prevent React Flow errors
@@ -96,6 +100,25 @@ export function GraphCanvas() {
     setEdges(edgesWithMarkers);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeEdges, setEdges]);
+
+  // Auto-fit view when a new graph is loaded (detected by node IDs changing)
+  useEffect(() => {
+    const currentNodeIds = storeNodes.map((n) => n.id).sort().join(',');
+    const prevNodeIds = prevNodeIdsRef.current;
+    
+    // If node IDs have changed significantly (new graph loaded), fit view
+    if (currentNodeIds !== prevNodeIds && storeNodes.length > 0) {
+      // Small delay to ensure nodes are rendered
+      const timeoutId = setTimeout(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      }, 50);
+      
+      prevNodeIdsRef.current = currentNodeIds;
+      return () => clearTimeout(timeoutId);
+    }
+    
+    prevNodeIdsRef.current = currentNodeIds;
+  }, [storeNodes, fitView]);
 
   const handleNodesChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

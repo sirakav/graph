@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Upload, Database, Github, FolderOpen } from 'lucide-react';
+import { Upload, Database, Github, FolderOpen, Share2, Check, AlertTriangle } from 'lucide-react';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ImportDialog } from '@/components/import-dialog';
 import { LayoutToolbar } from '@/components/layout-toolbar';
@@ -22,17 +22,106 @@ import {
 } from '@/components/ui/empty';
 import { useGraphStore } from '@/lib/graph-store';
 import { useSavedGraphsStore } from '@/lib/saved-graphs-store';
-import { parseArrowGraph, parseArrowGraphFromJSON } from '@/lib/arrow-parser';
+import { parseArrowGraph, parseArrowGraphFromJSON, type ArrowGraph } from '@/lib/arrow-parser';
+import {
+  loadSharedGraphFromUrl,
+  hasSharedGraphInUrl,
+  clearGraphFromUrl,
+  createShareableUrl,
+  isGraphTooLargeForUrl,
+} from '@/lib/url-share';
 
 export default function Home() {
   const nodes = useGraphStore((state) => state.nodes);
+  const edges = useGraphStore((state) => state.edges);
+  const graphStyle = useGraphStore((state) => state.graphStyle);
   const setGraph = useGraphStore((state) => state.setGraph);
   const savedGraphs = useSavedGraphsStore((state) => state.savedGraphs);
+  const saveGraph = useSavedGraphsStore((state) => state.saveGraph);
+  
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [urlTooLong, setUrlTooLong] = useState(false);
+  const [loadedFromUrl, setLoadedFromUrl] = useState(false);
 
-  // Load demo data on mount only if no saved graphs exist
+  // Reconstruct ArrowGraph from current state for sharing
+  const getCurrentArrowGraph = useCallback((): ArrowGraph | null => {
+    if (nodes.length === 0) return null;
+    
+    return {
+      nodes: nodes.map((node) => ({
+        id: node.id,
+        position: node.position,
+        labels: node.data.labels || [],
+        properties: node.data.properties || {},
+        style: {
+          'border-color': node.data.style?.borderColor,
+          'node-color': node.data.style?.backgroundColor,
+        },
+        group: node.data.groupId,
+        isGroup: node.data.isGroup,
+      })),
+      relationships: edges.map((edge) => ({
+        id: edge.id,
+        fromId: edge.source,
+        toId: edge.target,
+        type: edge.data?.relationshipType || '',
+        properties: edge.data?.properties || {},
+        style: {},
+      })),
+      style: graphStyle || {},
+    };
+  }, [nodes, edges, graphStyle]);
+
+  // Handle sharing the current graph
+  const handleShare = useCallback(async () => {
+    const arrowGraph = getCurrentArrowGraph();
+    if (!arrowGraph) return;
+    
+    // Check if URL would be too long
+    if (isGraphTooLargeForUrl(arrowGraph)) {
+      setUrlTooLong(true);
+      setShareStatus('error');
+      setTimeout(() => {
+        setShareStatus('idle');
+        setUrlTooLong(false);
+      }, 3000);
+      return;
+    }
+    
+    try {
+      const url = createShareableUrl(arrowGraph);
+      await navigator.clipboard.writeText(url);
+      setShareStatus('copied');
+      setTimeout(() => setShareStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to copy share URL:', error);
+      setShareStatus('error');
+      setTimeout(() => setShareStatus('idle'), 2000);
+    }
+  }, [getCurrentArrowGraph]);
+
+  // Load from URL on mount (highest priority)
   useEffect(() => {
-    // If there are saved graphs, don't auto-load demo
-    if (savedGraphs.length > 0) return;
+    if (hasSharedGraphInUrl()) {
+      const sharedGraph = loadSharedGraphFromUrl();
+      if (sharedGraph) {
+        const { nodes: parsedNodes, edges: parsedEdges, graphStyle: parsedStyle } = parseArrowGraph(sharedGraph);
+        setGraph(parsedNodes, parsedEdges, parsedStyle);
+        setLoadedFromUrl(true);
+        
+        // Auto-save the imported graph
+        saveGraph('Imported from shared link', sharedGraph);
+        
+        // Clear the URL parameter to allow normal navigation
+        clearGraphFromUrl();
+      }
+    }
+  }, [setGraph, saveGraph]);
+
+  // Load demo data on mount only if no saved graphs exist and not loaded from URL
+  useEffect(() => {
+    // Skip if already loaded from URL or if there are saved graphs
+    if (loadedFromUrl || savedGraphs.length > 0) return;
     
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
     fetch(`${basePath}/demo-graph.json`)
@@ -45,7 +134,7 @@ export default function Home() {
         }
       })
       .catch((err) => console.error('Failed to load demo graph:', err));
-  }, [setGraph, savedGraphs.length]);
+  }, [setGraph, savedGraphs.length, loadedFromUrl]);
 
   const hasGraph = nodes.length > 0;
 
@@ -84,6 +173,41 @@ export default function Home() {
                 Import JSON
               </Button>
             </ImportDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleShare}
+                  disabled={nodes.length === 0 || shareStatus === 'copied'}
+                >
+                  {shareStatus === 'copied' ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-500" />
+                      <span className="hidden sm:inline">Copied!</span>
+                    </>
+                  ) : shareStatus === 'error' && urlTooLong ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      <span className="hidden sm:inline">Too large</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Share</span>
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {nodes.length === 0 
+                  ? 'Load a graph to share' 
+                  : urlTooLong 
+                    ? 'Graph too large for URL sharing'
+                    : 'Copy shareable link'}
+              </TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 

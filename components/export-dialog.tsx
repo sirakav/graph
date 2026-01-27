@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGraphStore } from '@/lib/graph-store';
+import { useSavedQueriesStore } from '@/lib/saved-queries-store';
 import {
   exportGraph,
   getFileExtension,
@@ -90,10 +91,12 @@ export function ExportDialog({ children }: ExportDialogProps) {
   const [schemaName, setSchemaName] = useState('GraphSchema');
   const [includePositions, setIncludePositions] = useState(true);
   const [includeStyles, setIncludeStyles] = useState(true);
+  const [includeQueries, setIncludeQueries] = useState(true);
 
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const graphStyle = useGraphStore((state) => state.graphStyle);
+  const savedQueries = useSavedQueriesStore((state) => state.savedQueries);
 
   const exportedContent = useMemo(() => {
     if (nodes.length === 0) return '';
@@ -103,6 +106,8 @@ export function ExportDialog({ children }: ExportDialogProps) {
       schemaName,
       includePositions,
       includeStyles,
+      includeQueries,
+      queries: savedQueries,
     };
 
     try {
@@ -111,7 +116,7 @@ export function ExportDialog({ children }: ExportDialogProps) {
       console.error('Export error:', error);
       return `// Error generating export: ${error}`;
     }
-  }, [nodes, edges, graphStyle, selectedFormat, schemaName, includePositions, includeStyles]);
+  }, [nodes, edges, graphStyle, selectedFormat, schemaName, includePositions, includeStyles, includeQueries, savedQueries]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -226,6 +231,18 @@ export function ExportDialog({ children }: ExportDialogProps) {
                         Include styles
                       </Label>
                     </div>
+                    {savedQueries.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="queries"
+                          checked={includeQueries}
+                          onCheckedChange={setIncludeQueries}
+                        />
+                        <Label htmlFor="queries" className="text-sm cursor-pointer">
+                          Include queries ({savedQueries.length})
+                        </Label>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -497,7 +497,7 @@ export function SavedQueriesPanel({ children }: SavedQueriesPanelProps) {
           className="p-0 flex flex-col"
           defaultWidth={600}
           minWidth={400}
-          maxWidth={1000}
+          maxWidth={2000}
           showCloseButton={false}
           stacked
           ariaLabel={selectedQuery ? `Query: ${selectedQuery.name}` : 'Query Details'}

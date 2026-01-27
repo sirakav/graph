@@ -73,6 +73,7 @@ export default function Home() {
   const saveGraph = useSavedGraphsStore((state) => state.saveGraph);
   const updateSavedGraph = useSavedGraphsStore((state) => state.updateGraph);
   const savedQueries = useSavedQueriesStore((state) => state.savedQueries);
+  const clearQueries = useSavedQueriesStore((state) => state.clearQueries);
   const hasActiveHighlights = useHasActiveHighlights();
   const clearHighlights = useGraphStore((state) => state.clearHighlights);
   
@@ -110,8 +111,10 @@ export default function Home() {
         style: {},
       })),
       style: graphStyle || {},
+      // Include saved queries so they're associated with this graph
+      queries: savedQueries.length > 0 ? savedQueries : undefined,
     };
-  }, [nodes, edges, graphStyle]);
+  }, [nodes, edges, graphStyle, savedQueries]);
 
   // Handle sharing the current graph
   const handleShare = useCallback(async () => {
@@ -487,6 +490,7 @@ export default function Home() {
               <AlertDialogAction
                 onClick={() => {
                   clearGraph();
+                  clearQueries();
                   setClearGraphDialogOpen(false);
                 }}
               >

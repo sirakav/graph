@@ -1,4 +1,5 @@
 import type { GraphNode, SchemaEdge, ArrowGraph, ArrowGraphStyle } from './arrow-parser';
+import type { SavedQuery } from './saved-queries-store';
 
 export type ExportFormat = 'arrow' | 'cypher' | 'protobuf' | 'graphql';
 
@@ -6,7 +7,9 @@ export interface ExportOptions {
   format: ExportFormat;
   includePositions?: boolean; // For Arrow format
   includeStyles?: boolean;    // For Arrow format
+  includeQueries?: boolean;   // For Arrow format
   schemaName?: string;        // For Protobuf/GraphQL
+  queries?: SavedQuery[];     // Queries to include in export
 }
 
 /**
@@ -15,7 +18,8 @@ export interface ExportOptions {
 export function toArrowGraph(
   nodes: GraphNode[],
   edges: SchemaEdge[],
-  graphStyle: ArrowGraphStyle = {}
+  graphStyle: ArrowGraphStyle = {},
+  queries?: SavedQuery[]
 ): ArrowGraph {
   return {
     nodes: nodes.map((node) => ({
@@ -39,6 +43,7 @@ export function toArrowGraph(
       style: {},
     })),
     style: graphStyle || {},
+    queries: queries && queries.length > 0 ? queries : undefined,
   };
 }
 
@@ -49,11 +54,11 @@ export function exportToArrow(
   nodes: GraphNode[],
   edges: SchemaEdge[],
   graphStyle: ArrowGraphStyle = {},
-  options: { includePositions?: boolean; includeStyles?: boolean } = {}
+  options: { includePositions?: boolean; includeStyles?: boolean; includeQueries?: boolean; queries?: SavedQuery[] } = {}
 ): string {
-  const { includePositions = true, includeStyles = true } = options;
+  const { includePositions = true, includeStyles = true, includeQueries = true, queries } = options;
   
-  const arrowGraph = toArrowGraph(nodes, edges, graphStyle);
+  const arrowGraph = toArrowGraph(nodes, edges, graphStyle, includeQueries ? queries : undefined);
   
   // Optionally strip positions
   if (!includePositions) {
@@ -356,6 +361,8 @@ export function exportGraph(
       return exportToArrow(nodes, edges, graphStyle, {
         includePositions: options.includePositions,
         includeStyles: options.includeStyles,
+        includeQueries: options.includeQueries,
+        queries: options.queries,
       });
     case 'cypher':
       return exportToCypher(nodes, edges);

@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import * as SheetPrimitive from '@radix-ui/react-dialog';
+import * as VisuallyHiddenPrimitive from '@radix-ui/react-visually-hidden';
 import { XIcon, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,11 +11,13 @@ interface ResizableDrawerProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
+  /** When false, allows interaction with elements outside the drawer (useful for stacked drawers) */
+  modal?: boolean;
 }
 
-function ResizableDrawer({ open, onOpenChange, children }: ResizableDrawerProps) {
+function ResizableDrawer({ open, onOpenChange, children, modal = true }: ResizableDrawerProps) {
   return (
-    <SheetPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <SheetPrimitive.Root open={open} onOpenChange={onOpenChange} modal={modal}>
       {children}
     </SheetPrimitive.Root>
   );
@@ -61,6 +64,10 @@ interface ResizableDrawerContentProps
   maxWidth?: number;
   showCloseButton?: boolean;
   showResizeHandle?: boolean;
+  /** When true, renders at a higher z-index without its own overlay (for stacking on top of another drawer) */
+  stacked?: boolean;
+  /** Accessible label for the drawer (used when no visible title is provided) */
+  ariaLabel?: string;
 }
 
 function ResizableDrawerContent({
@@ -72,12 +79,22 @@ function ResizableDrawerContent({
   maxWidth = 800,
   showCloseButton = true,
   showResizeHandle = true,
+  stacked = false,
+  ariaLabel = 'Panel',
   ...props
 }: ResizableDrawerContentProps) {
   const [width, setWidth] = useState(defaultWidth);
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
+  const hasUserResized = useRef(false);
+
+  // Update width when defaultWidth prop changes (e.g., when showing detail view)
+  useEffect(() => {
+    if (!hasUserResized.current) {
+      setWidth(defaultWidth);
+    }
+  }, [defaultWidth]);
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -95,6 +112,7 @@ function ResizableDrawerContent({
           : moveEvent.clientX - startX.current;
         const newWidth = Math.min(Math.max(startWidth.current + delta, minWidth), maxWidth);
         setWidth(newWidth);
+        hasUserResized.current = true;
       };
 
       const handleMouseUp = () => {
@@ -112,13 +130,21 @@ function ResizableDrawerContent({
   );
 
   const resizeHandlePosition = side === 'right' ? 'left-0' : 'right-0';
+  const zIndex = stacked ? 'z-[60]' : 'z-50';
+
+  // For stacked drawers, prevent closing on outside interactions
+  const handleInteractOutside = useCallback((e: Event) => {
+    if (stacked) {
+      e.preventDefault();
+    }
+  }, [stacked]);
 
   return (
     <ResizableDrawerPortal>
-      <ResizableDrawerOverlay />
+      {!stacked && <ResizableDrawerOverlay />}
       <SheetPrimitive.Content
         className={cn(
-          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+          `bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed ${zIndex} flex flex-col shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 overflow-hidden`,
           side === 'right' &&
             'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full border-l',
           side === 'left' &&
@@ -126,8 +152,16 @@ function ResizableDrawerContent({
           className
         )}
         style={{ width }}
+        onInteractOutside={handleInteractOutside}
+        onPointerDownOutside={handleInteractOutside}
+        onFocusOutside={handleInteractOutside}
         {...props}
       >
+        {/* Visually hidden title for accessibility */}
+        <VisuallyHiddenPrimitive.Root asChild>
+          <SheetPrimitive.Title>{ariaLabel}</SheetPrimitive.Title>
+        </VisuallyHiddenPrimitive.Root>
+
         {/* Resize Handle */}
         {showResizeHandle && (
           <div

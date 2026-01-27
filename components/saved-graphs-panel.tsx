@@ -60,6 +60,7 @@ import {
   EmptyDescription,
 } from '@/components/ui/empty';
 import { useSavedGraphsStore, type SavedGraph } from '@/lib/saved-graphs-store';
+import { useSavedQueriesStore } from '@/lib/saved-queries-store';
 import { parseArrowGraph } from '@/lib/arrow-parser';
 import { useGraphStore } from '@/lib/graph-store';
 import { createShareableUrl, isGraphTooLargeForUrl } from '@/lib/url-share';
@@ -110,6 +111,7 @@ function SavedGraphItem({ graph, onLoad, onRename, onDuplicate, onDelete, onShar
 
   const nodeCount = graph.data.nodes?.length || 0;
   const edgeCount = graph.data.relationships?.length || 0;
+  const queryCount = graph.data.queries?.length || 0;
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't load if editing or if clicking on interactive elements
@@ -261,13 +263,18 @@ function SavedGraphItem({ graph, onLoad, onRename, onDuplicate, onDelete, onShar
                 </div>
               )}
               
-              <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                   {nodeCount} nodes
                 </Badge>
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                   {edgeCount} edges
                 </Badge>
+                {queryCount > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {queryCount} queries
+                  </Badge>
+                )}
               </div>
               
               <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
@@ -319,14 +326,24 @@ export function SavedGraphsPanel({ children }: SavedGraphsPanelProps) {
   const duplicateGraph = useSavedGraphsStore((state) => state.duplicateGraph);
   
   const setGraph = useGraphStore((state) => state.setGraph);
+  const replaceQueries = useSavedQueriesStore((state) => state.replaceQueries);
+  const clearQueries = useSavedQueriesStore((state) => state.clearQueries);
 
   const handleLoad = useCallback(
     (savedGraph: SavedGraph) => {
       const { nodes, edges, graphStyle } = parseArrowGraph(savedGraph.data);
+      
+      // Replace queries with those from the saved graph (or clear if none)
+      if (savedGraph.data.queries && savedGraph.data.queries.length > 0) {
+        replaceQueries(savedGraph.data.queries);
+      } else {
+        clearQueries();
+      }
+      
       setGraph(nodes, edges, graphStyle, savedGraph.id, savedGraph.name);
       setOpen(false);
     },
-    [setGraph]
+    [setGraph, replaceQueries, clearQueries]
   );
 
   const handleRename = useCallback(

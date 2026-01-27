@@ -34,6 +34,12 @@ interface GraphState {
   selectedNodeIds: string[];
   selectedEdgeId: string | null;
   
+  // Query mapping highlight state (for visualizing which nodes/edges a query targets)
+  highlightedNodeIds: string[];
+  highlightedEdgeIds: string[];
+  highlightedNodeLabels: string[];
+  highlightedRelationshipTypes: string[];
+  
   // Inspector drawer state (only opens on explicit action like double-click)
   inspectorOpen: boolean;
   
@@ -83,6 +89,10 @@ interface GraphState {
   // Group actions
   groupSelectedNodes: () => string | null;
   ungroupNodes: (groupId: string) => void;
+  
+  // Highlight actions (for query mapping visualization)
+  setHighlights: (nodeIds: string[], edgeIds: string[], nodeLabels: string[], relationshipTypes: string[]) => void;
+  clearHighlights: () => void;
 }
 
 export const useGraphStore = create<GraphState>((set) => ({
@@ -95,6 +105,10 @@ export const useGraphStore = create<GraphState>((set) => ({
   hasUnsavedChanges: false,
   selectedNodeIds: [],
   selectedEdgeId: null,
+  highlightedNodeIds: [],
+  highlightedEdgeIds: [],
+  highlightedNodeLabels: [],
+  highlightedRelationshipTypes: [],
   inspectorOpen: false,
   mouseMode: 'pan',
   isLoading: false,
@@ -452,6 +466,21 @@ export const useGraphStore = create<GraphState>((set) => ({
       hasUnsavedChanges: true,
     };
   }),
+  
+  // Highlight actions for query mapping visualization
+  setHighlights: (nodeIds, edgeIds, nodeLabels, relationshipTypes) => set({
+    highlightedNodeIds: nodeIds,
+    highlightedEdgeIds: edgeIds,
+    highlightedNodeLabels: nodeLabels,
+    highlightedRelationshipTypes: relationshipTypes,
+  }),
+  
+  clearHighlights: () => set({
+    highlightedNodeIds: [],
+    highlightedEdgeIds: [],
+    highlightedNodeLabels: [],
+    highlightedRelationshipTypes: [],
+  }),
 }));
 
 // Selectors
@@ -493,4 +522,50 @@ export const useSelectedEdge = () => {
   const edges = useEdges();
   const selectedId = useSelectedEdgeId();
   return selectedId ? edges.find((e) => e.id === selectedId) : null;
+};
+
+// Highlight selectors for query mapping visualization
+export const useHighlightedNodeIds = () => useGraphStore((state) => state.highlightedNodeIds);
+export const useHighlightedEdgeIds = () => useGraphStore((state) => state.highlightedEdgeIds);
+export const useHighlightedNodeLabels = () => useGraphStore((state) => state.highlightedNodeLabels);
+export const useHighlightedRelationshipTypes = () => useGraphStore((state) => state.highlightedRelationshipTypes);
+
+// Check if any highlights are active
+export const useHasActiveHighlights = () => useGraphStore((state) => 
+  state.highlightedNodeIds.length > 0 || 
+  state.highlightedEdgeIds.length > 0 ||
+  state.highlightedNodeLabels.length > 0 ||
+  state.highlightedRelationshipTypes.length > 0
+);
+
+// Get highlighted nodes (by ID or by label match)
+export const useHighlightedNodes = () => {
+  const nodes = useNodes();
+  const highlightedIds = useHighlightedNodeIds();
+  const highlightedLabels = useHighlightedNodeLabels();
+  
+  const idSet = new Set(highlightedIds);
+  const labelSet = new Set(highlightedLabels);
+  
+  return nodes.filter((n) => {
+    if (idSet.has(n.id)) return true;
+    const nodeData = n.data as SchemaNodeData;
+    return nodeData.labels?.some((label) => labelSet.has(label));
+  });
+};
+
+// Get highlighted edges (by ID or by relationship type match)
+export const useHighlightedEdges = () => {
+  const edges = useEdges();
+  const highlightedIds = useHighlightedEdgeIds();
+  const highlightedTypes = useHighlightedRelationshipTypes();
+  
+  const idSet = new Set(highlightedIds);
+  const typeSet = new Set(highlightedTypes);
+  
+  return edges.filter((e) => {
+    if (idSet.has(e.id)) return true;
+    const edgeData = e.data as SchemaEdgeData;
+    return typeSet.has(edgeData.relationshipType);
+  });
 };

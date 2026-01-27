@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -25,6 +25,8 @@ function SchemaEdgeComponent({
 }: EdgeProps<SchemaEdge>) {
   const selectEdge = useGraphStore((state) => state.selectEdge);
   const openInspector = useGraphStore((state) => state.openInspector);
+  const highlightedEdgeIds = useGraphStore((state) => state.highlightedEdgeIds);
+  const highlightedRelationshipTypes = useGraphStore((state) => state.highlightedRelationshipTypes);
   
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -37,6 +39,13 @@ function SchemaEdgeComponent({
 
   const edgeData = data as SchemaEdgeData | undefined;
   const relationshipType = edgeData?.relationshipType || '';
+  
+  // Check if this edge is highlighted by a query mapping
+  const isHighlighted = useMemo(() => {
+    if (highlightedEdgeIds.includes(id)) return true;
+    if (relationshipType && highlightedRelationshipTypes.includes(relationshipType)) return true;
+    return false;
+  }, [id, highlightedEdgeIds, highlightedRelationshipTypes, relationshipType]);
 
   // Handle label click - select edge and open inspector
   const handleLabelClick = useCallback((e: React.MouseEvent) => {
@@ -52,9 +61,13 @@ function SchemaEdgeComponent({
         path={edgePath}
         markerEnd={markerEnd}
         style={{
-          stroke: selected ? '#60a5fa' : '#6b7280',
-          strokeWidth: selected ? 2.5 : 2,
-          filter: selected ? 'drop-shadow(0 0 4px rgba(96, 165, 250, 0.5))' : 'none',
+          stroke: isHighlighted ? '#10b981' : selected ? '#60a5fa' : '#6b7280',
+          strokeWidth: isHighlighted ? 3 : selected ? 2.5 : 2,
+          filter: isHighlighted 
+            ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.6))'
+            : selected 
+              ? 'drop-shadow(0 0 4px rgba(96, 165, 250, 0.5))' 
+              : 'none',
         }}
       />
       {relationshipType && (
@@ -64,9 +77,11 @@ function SchemaEdgeComponent({
               'absolute pointer-events-auto nodrag nopan cursor-pointer z-50',
               'px-2 py-1 rounded-md text-xs font-mono font-medium',
               'transition-all duration-200',
-              selected
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
-                : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700 hover:bg-zinc-700/90 hover:border-zinc-600'
+              isHighlighted
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                : selected
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
+                  : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700 hover:bg-zinc-700/90 hover:border-zinc-600'
             )}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,

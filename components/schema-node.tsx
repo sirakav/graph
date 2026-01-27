@@ -1,10 +1,11 @@
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { SchemaNode as SchemaNodeType, SchemaNodeData } from '@/lib/arrow-parser';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useGraphStore } from '@/lib/graph-store';
 
 // Custom handle styles - small but visible
 const handleBaseStyles = `
@@ -26,9 +27,19 @@ const sourceHandleStyles = `
 `;
 
 function SchemaNodeComponent(props: NodeProps) {
-  const { data, selected } = props;
+  const { id, data, selected } = props;
   const [isHovered, setIsHovered] = useState(false);
   const nodeData = data as SchemaNodeData | undefined;
+  
+  // Check if this node is highlighted by a query mapping
+  const highlightedNodeIds = useGraphStore((state) => state.highlightedNodeIds);
+  const highlightedNodeLabels = useGraphStore((state) => state.highlightedNodeLabels);
+  
+  const isHighlighted = useMemo(() => {
+    if (highlightedNodeIds.includes(id)) return true;
+    if (nodeData?.labels?.some((label) => highlightedNodeLabels.includes(label))) return true;
+    return false;
+  }, [id, highlightedNodeIds, highlightedNodeLabels, nodeData?.labels]);
   
   // If no data, show debug info
   if (!nodeData || !nodeData.style) {
@@ -47,16 +58,19 @@ function SchemaNodeComponent(props: NodeProps) {
       className={cn(
         'relative min-w-[140px] max-w-[280px] rounded-xl transition-all duration-200 group',
         'shadow-lg hover:shadow-xl',
-        selected && 'ring-2 ring-offset-2 ring-offset-background'
+        selected && 'ring-2 ring-offset-2 ring-offset-background',
+        isHighlighted && 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-background'
       )}
       style={{
         backgroundColor: style.backgroundColor,
         borderWidth: '3px',
         borderStyle: 'solid',
-        borderColor: style.borderColor,
-        boxShadow: selected
-          ? `0 0 20px ${style.borderColor}80, 0 0 40px ${style.borderColor}40`
-          : `0 4px 20px rgba(0, 0, 0, 0.3)`,
+        borderColor: isHighlighted ? '#10b981' : style.borderColor,
+        boxShadow: isHighlighted
+          ? `0 0 20px rgba(16, 185, 129, 0.5), 0 0 40px rgba(16, 185, 129, 0.3)`
+          : selected
+            ? `0 0 20px ${style.borderColor}80, 0 0 40px ${style.borderColor}40`
+            : `0 4px 20px rgba(0, 0, 0, 0.3)`,
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

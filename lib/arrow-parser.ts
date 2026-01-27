@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
+import type { SavedQuery } from './saved-queries-store';
 
 // Types for Arrow Graph JSON format
 export interface ArrowNode {
@@ -40,6 +41,8 @@ export interface ArrowGraph {
   nodes: ArrowNode[];
   relationships: ArrowRelationship[];
   style: ArrowGraphStyle;
+  // Optional saved queries for use case exploration
+  queries?: SavedQuery[];
 }
 
 // React Flow node data type - with index signature for compatibility
@@ -380,6 +383,10 @@ export function parseArrowGraphFromJSON(jsonString: string): ArrowGraph | null {
           style: rel.style || {},
         })),
         style: data.style || {},
+        // Preserve optional queries field (backward compatible)
+        queries: Array.isArray((data as unknown as Record<string, unknown>).queries) 
+          ? (data as unknown as Record<string, unknown>).queries as SavedQuery[]
+          : undefined,
       };
     }
     return null;

@@ -12,7 +12,8 @@ Arrow Graph files are JSON documents that define nodes (entities), relationships
 {
   "nodes": [...],
   "relationships": [...],
-  "style": {...}
+  "style": {...},
+  "queries": [...]  // Optional - saved queries for use case exploration
 }
 ```
 
@@ -244,11 +245,149 @@ company (Organization)
 
 ---
 
+## Saved Queries
+
+The optional `queries` array allows you to store Cypher queries alongside your graph schema for documentation and use case exploration. Each query can include context queries (enrichment slots) that provide additional data fields.
+
+### Query Structure
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Unique identifier for the query |
+| `name` | `string` | Yes | Display name for the query |
+| `query` | `string` | Yes | Main Cypher query text |
+| `description` | `string` | No | Documentation describing the query's purpose |
+| `tags` | `string[]` | No | Tags for categorization and filtering |
+| `expectedResults` | `object` | No | Sample output data (see [Expected Results](#expected-results)) |
+| `graphMapping` | `object` | No | Visual mapping to nodes/edges (see [Graph Mapping](#graph-mapping)) |
+| `contextQueries` | `object` | No | Named enrichment queries (see [Context Queries](#context-queries)) |
+| `createdAt` | `number` | Yes | Unix timestamp of creation |
+| `updatedAt` | `number` | Yes | Unix timestamp of last update |
+
+### Expected Results
+
+Sample output data showing what the query would return.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `columns` | `string[]` | Column headers for the result set |
+| `rows` | `object[]` | Array of row objects with column values |
+
+```json
+{
+  "expectedResults": {
+    "columns": ["user", "role", "permissions"],
+    "rows": [
+      { "user": "alice@corp.com", "role": "Admin", "permissions": ["read", "write", "delete"] },
+      { "user": "bob@corp.com", "role": "Admin", "permissions": ["read", "write"] }
+    ]
+  }
+}
+```
+
+### Graph Mapping
+
+Defines which nodes and relationships the query targets for visual highlighting.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `targetNodeLabels` | `string[]` | Node labels this query touches |
+| `targetRelationshipTypes` | `string[]` | Relationship types involved |
+| `highlightNodeIds` | `string[]` | Specific node IDs to highlight |
+| `highlightEdgeIds` | `string[]` | Specific edge IDs to highlight |
+
+```json
+{
+  "graphMapping": {
+    "targetNodeLabels": ["Person", "Role"],
+    "targetRelationshipTypes": ["HAS_ROLE", "HAS_PERMISSION"]
+  }
+}
+```
+
+### Context Queries
+
+Named enrichment slots that provide additional data fields related to the main query. Context queries are stored as a key-value object where the key is a unique identifier.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Display name for the context |
+| `query` | `string` | Yes | Enrichment Cypher query |
+| `description` | `string` | No | What this context provides |
+| `expectedResults` | `object` | No | Sample enrichment data |
+| `graphMapping` | `object` | No | Additional nodes/edges touched |
+
+### Complete Query Example
+
+```json
+{
+  "queries": [
+    {
+      "id": "query_admin_access",
+      "name": "Find Admin Users",
+      "query": "MATCH (p:Person)-[:HAS_ROLE]->(r:Role)\nWHERE r.name = 'Admin'\nRETURN p.email, p.name, r.permissions",
+      "description": "Identifies all users with administrative privileges in the system. Use this to audit admin access and ensure principle of least privilege.",
+      "tags": ["security", "audit", "access-control"],
+      "expectedResults": {
+        "columns": ["p.email", "p.name", "r.permissions"],
+        "rows": [
+          { "p.email": "alice@corp.com", "p.name": "Alice Smith", "r.permissions": ["read", "write", "delete"] }
+        ]
+      },
+      "graphMapping": {
+        "targetNodeLabels": ["Person", "Role"],
+        "targetRelationshipTypes": ["HAS_ROLE"]
+      },
+      "contextQueries": {
+        "user_details": {
+          "name": "User Details",
+          "query": "MATCH (p:Person)\nRETURN p.email, p.department, p.last_login, p.created_at",
+          "description": "Additional user profile information including department and activity",
+          "expectedResults": {
+            "columns": ["email", "department", "last_login"],
+            "rows": [
+              { "email": "alice@corp.com", "department": "Engineering", "last_login": "2024-01-15T10:30:00Z" }
+            ]
+          }
+        },
+        "asset_access": {
+          "name": "Asset Access",
+          "query": "MATCH (p:Person)-[:HAS_ACCESS]->(a:Asset)\nRETURN a.name, a.type, a.sensitivity",
+          "description": "Assets accessible by admin users",
+          "graphMapping": {
+            "targetNodeLabels": ["Asset"],
+            "targetRelationshipTypes": ["HAS_ACCESS"]
+          }
+        },
+        "credential_exposure": {
+          "name": "Credential Exposure",
+          "query": "MATCH (p:Person)-[:OWNS]->(c:StolenCredential)\nRETURN c.source, c.detected_at, c.severity",
+          "description": "Known credential exposures for admin users - critical for security response"
+        }
+      },
+      "createdAt": 1706367600000,
+      "updatedAt": 1706367600000
+    }
+  ]
+}
+```
+
+### Use Cases for Saved Queries
+
+- **Security Auditing**: Document queries for access reviews, privilege escalation detection
+- **Compliance**: Store queries that verify compliance requirements
+- **Incident Response**: Pre-built queries for investigating security incidents
+- **Onboarding**: Help new team members understand the graph schema through example queries
+- **Documentation**: Self-documenting graph schemas with real query examples
+
+---
+
 ## Backward Compatibility
 
-The `group` and `isGroup` fields are **optional**. Files created before the grouping feature was added will continue to work without modification:
+All optional fields (`group`, `isGroup`, `queries`) are designed for backward compatibility. Files created before these features were added will continue to work without modification:
 
 - Nodes without `group` or `isGroup` fields render as standalone nodes
+- Files without a `queries` array simply have no saved queries
 - The parser automatically handles missing optional fields
 - No migration is required for existing files
 
@@ -327,6 +466,21 @@ The `group` and `isGroup` fields are **optional**. Files created before the grou
     "border-color": "#404040",
     "arrow-color": "#6B7280",
     "arrow-width": 2
-  }
+  },
+  "queries": [
+    {
+      "id": "query_server_connections",
+      "name": "Server Database Connections",
+      "query": "MATCH (s:Server)-[r:QUERIES]->(d:Database)\nRETURN s.name, d.name, r.port",
+      "description": "Find all servers connected to databases within the production network",
+      "tags": ["infrastructure", "networking"],
+      "graphMapping": {
+        "targetNodeLabels": ["Server", "Database"],
+        "targetRelationshipTypes": ["QUERIES"]
+      },
+      "createdAt": 1706367600000,
+      "updatedAt": 1706367600000
+    }
+  ]
 }
 ```

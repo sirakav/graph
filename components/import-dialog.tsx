@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { parseArrowGraphFromJSON, parseArrowGraph, type ArrowGraph } from '@/lib/arrow-parser';
 import { useGraphStore } from '@/lib/graph-store';
 import { useSavedGraphsStore } from '@/lib/saved-graphs-store';
+import { useSavedQueriesStore } from '@/lib/saved-queries-store';
 
 interface ImportDialogProps {
   children?: React.ReactNode;
@@ -40,6 +41,7 @@ export function ImportDialog({ children }: ImportDialogProps) {
   const setGraph = useGraphStore((state) => state.setGraph);
   const setLoading = useGraphStore((state) => state.setLoading);
   const saveGraph = useSavedGraphsStore((state) => state.saveGraph);
+  const importQueries = useSavedQueriesStore((state) => state.importQueries);
 
   const resetState = useCallback(() => {
     setError(null);
@@ -84,6 +86,11 @@ export function ImportDialog({ children }: ImportDialogProps) {
         setSaved(true);
       }
       
+      // Import queries if they exist in the graph
+      if (parsedGraph.queries && parsedGraph.queries.length > 0) {
+        importQueries(parsedGraph.queries);
+      }
+      
       setGraph(nodes, edges, graphStyle);
       setOpen(false);
       resetState();
@@ -92,7 +99,7 @@ export function ImportDialog({ children }: ImportDialogProps) {
     } finally {
       setLoading(false);
     }
-  }, [parsedGraph, saveToLibrary, graphName, setGraph, setLoading, saveGraph, resetState]);
+  }, [parsedGraph, saveToLibrary, graphName, setGraph, setLoading, saveGraph, importQueries, resetState]);
 
   const handleFileSelect = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,6 +162,7 @@ export function ImportDialog({ children }: ImportDialogProps) {
 
   const nodeCount = parsedGraph?.nodes?.length || 0;
   const edgeCount = parsedGraph?.relationships?.length || 0;
+  const queryCount = parsedGraph?.queries?.length || 0;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -238,13 +246,18 @@ export function ImportDialog({ children }: ImportDialogProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{fileName}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <Badge variant="secondary" className="text-[10px]">
                         {nodeCount} nodes
                       </Badge>
                       <Badge variant="secondary" className="text-[10px]">
                         {edgeCount} relationships
                       </Badge>
+                      {queryCount > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {queryCount} queries
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <Button

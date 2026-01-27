@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Upload, Download, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus, Layers, FilePlus2, Save } from 'lucide-react';
+import { Upload, Download, Database, Github, FolderOpen, Share2, Check, AlertTriangle, Plus, Layers, FilePlus2, Save, FileCode } from 'lucide-react';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ImportDialog } from '@/components/import-dialog';
 import { ExportDialog } from '@/components/export-dialog';
 import { LayoutToolbar } from '@/components/layout-toolbar';
 import { NodeInspector } from '@/components/node-inspector';
 import { SavedGraphsPanel } from '@/components/saved-graphs-panel';
+import { SavedQueriesPanel } from '@/components/saved-queries-panel';
 import { EditToolbar } from '@/components/edit-toolbar';
 import { NodeEditorDialog } from '@/components/node-editor-dialog';
 import { SchemaExplorer } from '@/components/schema-explorer';
@@ -45,8 +46,9 @@ import {
   AlertDialogTitle,
   AlertDialogMedia,
 } from '@/components/ui/alert-dialog';
-import { useGraphStore } from '@/lib/graph-store';
+import { useGraphStore, useHasActiveHighlights } from '@/lib/graph-store';
 import { useSavedGraphsStore } from '@/lib/saved-graphs-store';
+import { useSavedQueriesStore } from '@/lib/saved-queries-store';
 import { parseArrowGraph, parseArrowGraphFromJSON, type ArrowGraph } from '@/lib/arrow-parser';
 import {
   loadSharedGraphFromUrl,
@@ -70,6 +72,9 @@ export default function Home() {
   const savedGraphs = useSavedGraphsStore((state) => state.savedGraphs);
   const saveGraph = useSavedGraphsStore((state) => state.saveGraph);
   const updateSavedGraph = useSavedGraphsStore((state) => state.updateGraph);
+  const savedQueries = useSavedQueriesStore((state) => state.savedQueries);
+  const hasActiveHighlights = useHasActiveHighlights();
+  const clearHighlights = useGraphStore((state) => state.clearHighlights);
   
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [urlTooLong, setUrlTooLong] = useState(false);
@@ -290,6 +295,17 @@ export default function Home() {
                 )}
               </Button>
             </SavedGraphsPanel>
+            <SavedQueriesPanel>
+              <Button variant="outline" size="sm" className="gap-2">
+                <FileCode className="w-4 h-4" />
+                <span className="hidden sm:inline">Queries</span>
+                {savedQueries.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {savedQueries.length}
+                  </Badge>
+                )}
+              </Button>
+            </SavedQueriesPanel>
             <SchemaExplorer>
               <Button variant="outline" size="sm" className="gap-2" disabled={nodes.length === 0}>
                 <Layers className="w-4 h-4" />
@@ -384,6 +400,19 @@ export default function Home() {
                     <span className="w-2 h-2 rounded-full bg-purple-500" />
                     {useGraphStore.getState().edges.length} relationships
                   </span>
+                  {hasActiveHighlights && (
+                    <>
+                      <span className="text-muted-foreground">•</span>
+                      <button
+                        onClick={clearHighlights}
+                        className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Query Highlight
+                        <span className="text-[10px]">✕</span>
+                      </button>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

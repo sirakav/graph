@@ -23,7 +23,7 @@ import { SchemaNode } from './schema-node';
 import { SchemaEdge } from './schema-edge';
 import { GroupNode } from './group-node';
 import { useGraphStore } from '@/lib/graph-store';
-import type { SchemaNodeData } from '@/lib/arrow-parser';
+import type { SchemaNodeData, SchemaEdgeData } from '@/lib/arrow-parser';
 
 const nodeTypes: NodeTypes = {
   schemaNode: SchemaNode,
@@ -59,6 +59,11 @@ export function GraphCanvas() {
   const closeInspector = useGraphStore((state) => state.closeInspector);
   const showGroups = useGraphStore((state) => state.showGroups);
   const mouseMode = useGraphStore((state) => state.mouseMode);
+  const hideNonHighlighted = useGraphStore((state) => state.hideNonHighlighted);
+  const highlightedNodeIds = useGraphStore((state) => state.highlightedNodeIds);
+  const highlightedNodeLabels = useGraphStore((state) => state.highlightedNodeLabels);
+  const highlightedEdgeIds = useGraphStore((state) => state.highlightedEdgeIds);
+  const highlightedRelationshipTypes = useGraphStore((state) => state.highlightedRelationshipTypes);
   
   const addEdgeToStore = useGraphStore((state) => state.addEdge);
   const { fitView } = useReactFlow();
@@ -68,8 +73,18 @@ export function GraphCanvas() {
   // Filter out group nodes when showGroups is false
   // Also remove parentId from child nodes to prevent React Flow errors
   // And sync selection state with our store
+  // Filter out non-highlighted nodes when hideNonHighlighted is true
   const filteredNodes = useMemo(() => {
     const selectedSet = new Set(selectedNodeIds);
+    const highlightedIdSet = new Set(highlightedNodeIds);
+    const highlightedLabelSet = new Set(highlightedNodeLabels);
+    
+    // Helper to check if a node is highlighted
+    const isNodeHighlighted = (node: typeof storeNodes[0]) => {
+      if (highlightedIdSet.has(node.id)) return true;
+      const nodeData = node.data as SchemaNodeData;
+      return nodeData.labels?.some((label) => highlightedLabelSet.has(label)) ?? false;
+    };
     
     const processNodes = (nodes: typeof storeNodes) => {
       return nodes.map((node) => ({
@@ -78,39 +93,89 @@ export function GraphCanvas() {
       }));
     };
     
-    if (showGroups) return processNodes(storeNodes);
+    let nodesToProcess = storeNodes;
     
-    // Get IDs of all group nodes
-    const groupNodeIds = new Set(
-      storeNodes.filter((node) => node.type === 'groupNode').map((node) => node.id)
-    );
-    
-    // Filter out group nodes and remove parent references from children
-    const filtered = storeNodes
-      .filter((node) => node.type !== 'groupNode')
-      .map((node) => {
-        // If this node's parent is a hidden group, remove the parent reference
-        if ('parentId' in node && groupNodeIds.has(node.parentId as string)) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { parentId, extent, ...rest } = node;
-          return rest as typeof node;
-        }
-        return node;
-      });
+    // Filter out group nodes if showGroups is false
+    if (!showGroups) {
+      // Get IDs of all group nodes
+      const groupNodeIds = new Set(
+        storeNodes.filter((node) => node.type === 'groupNode').map((node) => node.id)
+      );
       
-    return processNodes(filtered);
-  }, [storeNodes, showGroups, selectedNodeIds]);
+      // Filter out group nodes and remove parent references from children
+      nodesToProcess = storeNodes
+        .filter((node) => node.type !== 'groupNode')
+        .map((node) => {
+          // If this node's parent is a hidden group, remove the parent reference
+          if ('parentId' in node && groupNodeIds.has(node.parentId as string)) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { parentId, extent, ...rest } = node;
+            return rest as typeof node;
+          }
+          return node;
+        });
+    }
+    
+    // Filter out non-highlighted nodes if hideNonHighlighted is true
+    if (hideNonHighlighted && (highlightedNodeIds.length > 0 || highlightedNodeLabels.length > 0)) {
+      nodesToProcess = nodesToProcess.filter((node) => {
+        // Always show group nodes if they're visible
+        if (node.type === 'groupNode') return true;
+        return isNodeHighlighted(node);
+      });
+    }
+      
+    return processNodes(nodesToProcess);
+  }, [storeNodes, showGroups, selectedNodeIds, hideNonHighlighted, highlightedNodeIds, highlightedNodeLabels]);
 
-  // Add markers to edges
-  const edgesWithMarkers = storeEdges.map((edge) => ({
-    ...edge,
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 20,
-      height: 20,
-      color: '#6b7280',
-    },
-  }));
+  // Filter and add markers to edges
+  // When hideNonHighlighted is true, only show edges that connect highlighted nodes
+  const edgesWithMarkers = useMemo(() => {
+    const highlightedIdSet = new Set(highlightedNodeIds);
+    const highlightedLabelSet = new Set(highlightedNodeLabels);
+    const highlightedEdgeIdSet = new Set(highlightedEdgeIds);
+    const highlightedTypeSet = new Set(highlightedRelationshipTypes);
+    
+    // Get IDs of visible nodes (for filtering edges)
+    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
+    
+    // Helper to check if an edge is highlighted
+    const isEdgeHighlighted = (edge: typeof storeEdges[0]) => {
+      if (highlightedEdgeIdSet.has(edge.id)) return true;
+      const edgeData = edge.data as SchemaEdgeData | undefined;
+      if (edgeData && highlightedTypeSet.has(edgeData.relationshipType)) return true;
+      return false;
+    };
+    
+    let edgesToProcess = storeEdges;
+    
+    // Filter edges when hideNonHighlighted is active
+    if (hideNonHighlighted) {
+      edgesToProcess = storeEdges.filter((edge) => {
+        // Edge must connect visible nodes
+        if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {
+          return false;
+        }
+        
+        // If we have highlighted edge IDs or relationship types, also filter by those
+        if (highlightedEdgeIds.length > 0 || highlightedRelationshipTypes.length > 0) {
+          return isEdgeHighlighted(edge);
+        }
+        
+        return true;
+      });
+    }
+    
+    return edgesToProcess.map((edge) => ({
+      ...edge,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#6b7280',
+      },
+    }));
+  }, [storeEdges, filteredNodes, hideNonHighlighted, highlightedEdgeIds, highlightedRelationshipTypes, highlightedNodeIds, highlightedNodeLabels]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(filteredNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(edgesWithMarkers);
@@ -122,8 +187,7 @@ export function GraphCanvas() {
 
   useEffect(() => {
     setEdges(edgesWithMarkers);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeEdges, setEdges]);
+  }, [edgesWithMarkers, setEdges]);
 
   // Auto-fit view when a new graph is loaded (detected by node IDs changing)
   useEffect(() => {

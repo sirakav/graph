@@ -11,6 +11,8 @@ import {
   Maximize2,
   RotateCcw,
   Layers,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useGraphStore } from '@/lib/graph-store';
+import { useGraphStore, useHasActiveHighlights, useHideNonHighlighted } from '@/lib/graph-store';
 import { 
   applyLayout, 
   type LayoutAlgorithm, 
@@ -57,6 +59,9 @@ export function LayoutToolbar() {
   );
   const showGroups = useGraphStore((state) => state.showGroups);
   const setShowGroups = useGraphStore((state) => state.setShowGroups);
+  const setHideNonHighlighted = useGraphStore((state) => state.setHideNonHighlighted);
+  const hasActiveHighlights = useHasActiveHighlights();
+  const hideNonHighlighted = useHideNonHighlighted();
   
   // Track if we've applied initial layout for the current graph
   const appliedLayoutForNodes = useRef<string>('');
@@ -192,6 +197,37 @@ export function LayoutToolbar() {
             </TooltipContent>
           </Tooltip>
         </div>
+
+        {/* Hide Non-Highlighted - Only shows when query highlights are active */}
+        {hasActiveHighlights && (
+          <div className="flex items-center gap-2 border-l border-zinc-700 pl-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={hideNonHighlighted ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setHideNonHighlighted(!hideNonHighlighted)}
+                  className={`gap-2 ${hideNonHighlighted ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-400 hover:text-emerald-300'}`}
+                >
+                  {hideNonHighlighted ? (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Show All
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="w-4 h-4" />
+                      Focus
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{hideNonHighlighted ? 'Show all nodes' : 'Hide non-highlighted nodes'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Spacing Slider */}
         <div className="flex items-center gap-3 border-l border-zinc-700 pl-3">

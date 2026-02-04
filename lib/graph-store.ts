@@ -39,6 +39,7 @@ interface GraphState {
   highlightedEdgeIds: string[];
   highlightedNodeLabels: string[];
   highlightedRelationshipTypes: string[];
+  hideNonHighlighted: boolean;
   
   // Inspector drawer state (only opens on explicit action like double-click)
   inspectorOpen: boolean;
@@ -93,6 +94,7 @@ interface GraphState {
   // Highlight actions (for query mapping visualization)
   setHighlights: (nodeIds: string[], edgeIds: string[], nodeLabels: string[], relationshipTypes: string[]) => void;
   clearHighlights: () => void;
+  setHideNonHighlighted: (hide: boolean) => void;
 }
 
 export const useGraphStore = create<GraphState>((set) => ({
@@ -109,6 +111,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   highlightedEdgeIds: [],
   highlightedNodeLabels: [],
   highlightedRelationshipTypes: [],
+  hideNonHighlighted: false,
   inspectorOpen: false,
   mouseMode: 'pan',
   isLoading: false,
@@ -480,7 +483,10 @@ export const useGraphStore = create<GraphState>((set) => ({
     highlightedEdgeIds: [],
     highlightedNodeLabels: [],
     highlightedRelationshipTypes: [],
+    hideNonHighlighted: false,
   }),
+  
+  setHideNonHighlighted: (hide) => set({ hideNonHighlighted: hide }),
 }));
 
 // Selectors
@@ -537,6 +543,9 @@ export const useHasActiveHighlights = () => useGraphStore((state) =>
   state.highlightedNodeLabels.length > 0 ||
   state.highlightedRelationshipTypes.length > 0
 );
+
+// Check if non-highlighted nodes should be hidden
+export const useHideNonHighlighted = () => useGraphStore((state) => state.hideNonHighlighted);
 
 // Get highlighted nodes (by ID or by label match)
 export const useHighlightedNodes = () => {

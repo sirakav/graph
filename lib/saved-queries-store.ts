@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 // Expected results for a query - sample data showing what the query would return
 export interface ExpectedResult {
@@ -78,183 +77,177 @@ function generateId(): string {
 }
 
 export const useSavedQueriesStore = create<SavedQueriesState>()(
-  persist(
-    (set, get) => ({
-      savedQueries: [],
-      selectedQueryId: null,
-      activeContextTab: null,
+  (set, get) => ({
+    savedQueries: [],
+    selectedQueryId: null,
+    activeContextTab: null,
 
-      saveQuery: (queryData) => {
-        const id = generateId();
-        const now = Date.now();
-        const newQuery: SavedQuery = {
-          ...queryData,
-          id,
-          createdAt: now,
-          updatedAt: now,
-        };
-        
-        set((state) => ({
-          savedQueries: [newQuery, ...state.savedQueries],
-        }));
-        
-        return id;
-      },
+    saveQuery: (queryData) => {
+      const id = generateId();
+      const now = Date.now();
+      const newQuery: SavedQuery = {
+        ...queryData,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      set((state) => ({
+        savedQueries: [newQuery, ...state.savedQueries],
+      }));
+      
+      return id;
+    },
 
-      updateQuery: (id, updates) => {
-        set((state) => ({
-          savedQueries: state.savedQueries.map((query) =>
-            query.id === id
-              ? {
-                  ...query,
-                  ...updates,
-                  updatedAt: Date.now(),
-                }
-              : query
-          ),
-        }));
-      },
+    updateQuery: (id, updates) => {
+      set((state) => ({
+        savedQueries: state.savedQueries.map((query) =>
+          query.id === id
+            ? {
+                ...query,
+                ...updates,
+                updatedAt: Date.now(),
+              }
+            : query
+        ),
+      }));
+    },
 
-      deleteQuery: (id) => {
-        set((state) => ({
-          savedQueries: state.savedQueries.filter((query) => query.id !== id),
-          selectedQueryId: state.selectedQueryId === id ? null : state.selectedQueryId,
-        }));
-      },
+    deleteQuery: (id) => {
+      set((state) => ({
+        savedQueries: state.savedQueries.filter((query) => query.id !== id),
+        selectedQueryId: state.selectedQueryId === id ? null : state.selectedQueryId,
+      }));
+    },
 
-      duplicateQuery: (id) => {
-        const original = get().getQuery(id);
-        if (!original) return null;
-        
-        const newId = generateId();
-        const now = Date.now();
-        const duplicatedQuery: SavedQuery = {
-          ...JSON.parse(JSON.stringify(original)), // Deep clone
-          id: newId,
-          name: `${original.name} (Copy)`,
-          createdAt: now,
-          updatedAt: now,
-        };
-        
-        set((state) => ({
-          savedQueries: [duplicatedQuery, ...state.savedQueries],
-        }));
-        
-        return newId;
-      },
+    duplicateQuery: (id) => {
+      const original = get().getQuery(id);
+      if (!original) return null;
+      
+      const newId = generateId();
+      const now = Date.now();
+      const duplicatedQuery: SavedQuery = {
+        ...JSON.parse(JSON.stringify(original)), // Deep clone
+        id: newId,
+        name: `${original.name} (Copy)`,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      set((state) => ({
+        savedQueries: [duplicatedQuery, ...state.savedQueries],
+      }));
+      
+      return newId;
+    },
 
-      getQuery: (id) => {
-        return get().savedQueries.find((query) => query.id === id);
-      },
+    getQuery: (id) => {
+      return get().savedQueries.find((query) => query.id === id);
+    },
 
-      // Context query actions
-      addContextQuery: (queryId, contextKey, context) => {
-        set((state) => ({
-          savedQueries: state.savedQueries.map((query) => {
-            if (query.id !== queryId) return query;
-            return {
-              ...query,
-              contextQueries: {
-                ...query.contextQueries,
-                [contextKey]: context,
+    // Context query actions
+    addContextQuery: (queryId, contextKey, context) => {
+      set((state) => ({
+        savedQueries: state.savedQueries.map((query) => {
+          if (query.id !== queryId) return query;
+          return {
+            ...query,
+            contextQueries: {
+              ...query.contextQueries,
+              [contextKey]: context,
+            },
+            updatedAt: Date.now(),
+          };
+        }),
+      }));
+    },
+
+    updateContextQuery: (queryId, contextKey, updates) => {
+      set((state) => ({
+        savedQueries: state.savedQueries.map((query) => {
+          if (query.id !== queryId || !query.contextQueries?.[contextKey]) return query;
+          return {
+            ...query,
+            contextQueries: {
+              ...query.contextQueries,
+              [contextKey]: {
+                ...query.contextQueries[contextKey],
+                ...updates,
               },
-              updatedAt: Date.now(),
-            };
-          }),
-        }));
-      },
+            },
+            updatedAt: Date.now(),
+          };
+        }),
+      }));
+    },
 
-      updateContextQuery: (queryId, contextKey, updates) => {
-        set((state) => ({
-          savedQueries: state.savedQueries.map((query) => {
-            if (query.id !== queryId || !query.contextQueries?.[contextKey]) return query;
-            return {
-              ...query,
-              contextQueries: {
-                ...query.contextQueries,
-                [contextKey]: {
-                  ...query.contextQueries[contextKey],
-                  ...updates,
-                },
-              },
-              updatedAt: Date.now(),
-            };
-          }),
-        }));
-      },
+    removeContextQuery: (queryId, contextKey) => {
+      set((state) => ({
+        savedQueries: state.savedQueries.map((query) => {
+          if (query.id !== queryId || !query.contextQueries) return query;
+          const { [contextKey]: _, ...remainingContexts } = query.contextQueries;
+          return {
+            ...query,
+            contextQueries: Object.keys(remainingContexts).length > 0 ? remainingContexts : undefined,
+            updatedAt: Date.now(),
+          };
+        }),
+        activeContextTab: state.activeContextTab === contextKey ? null : state.activeContextTab,
+      }));
+    },
 
-      removeContextQuery: (queryId, contextKey) => {
-        set((state) => ({
-          savedQueries: state.savedQueries.map((query) => {
-            if (query.id !== queryId || !query.contextQueries) return query;
-            const { [contextKey]: _, ...remainingContexts } = query.contextQueries;
-            return {
-              ...query,
-              contextQueries: Object.keys(remainingContexts).length > 0 ? remainingContexts : undefined,
-              updatedAt: Date.now(),
-            };
-          }),
-          activeContextTab: state.activeContextTab === contextKey ? null : state.activeContextTab,
-        }));
-      },
+    // Selection actions
+    selectQuery: (id) => {
+      set({ selectedQueryId: id, activeContextTab: null });
+    },
 
-      // Selection actions
-      selectQuery: (id) => {
-        set({ selectedQueryId: id, activeContextTab: null });
-      },
+    setActiveContextTab: (tab) => {
+      set({ activeContextTab: tab });
+    },
 
-      setActiveContextTab: (tab) => {
-        set({ activeContextTab: tab });
-      },
+    // Import/Export
+    importQueries: (queries) => {
+      const now = Date.now();
+      const importedQueries = queries.map((q) => ({
+        ...q,
+        id: generateId(), // Generate new IDs to avoid conflicts
+        createdAt: q.createdAt || now,
+        updatedAt: now,
+      }));
+      
+      set((state) => ({
+        savedQueries: [...importedQueries, ...state.savedQueries],
+      }));
+    },
 
-      // Import/Export
-      importQueries: (queries) => {
-        const now = Date.now();
-        const importedQueries = queries.map((q) => ({
-          ...q,
-          id: generateId(), // Generate new IDs to avoid conflicts
-          createdAt: q.createdAt || now,
-          updatedAt: now,
-        }));
-        
-        set((state) => ({
-          savedQueries: [...importedQueries, ...state.savedQueries],
-        }));
-      },
+    replaceQueries: (queries) => {
+      const now = Date.now();
+      const importedQueries = queries.map((q) => ({
+        ...q,
+        id: generateId(), // Generate new IDs to avoid conflicts
+        createdAt: q.createdAt || now,
+        updatedAt: now,
+      }));
+      
+      set({
+        savedQueries: importedQueries,
+        selectedQueryId: null,
+        activeContextTab: null,
+      });
+    },
 
-      replaceQueries: (queries) => {
-        const now = Date.now();
-        const importedQueries = queries.map((q) => ({
-          ...q,
-          id: generateId(), // Generate new IDs to avoid conflicts
-          createdAt: q.createdAt || now,
-          updatedAt: now,
-        }));
-        
-        set({
-          savedQueries: importedQueries,
-          selectedQueryId: null,
-          activeContextTab: null,
-        });
-      },
+    clearQueries: () => {
+      set({
+        savedQueries: [],
+        selectedQueryId: null,
+        activeContextTab: null,
+      });
+    },
 
-      clearQueries: () => {
-        set({
-          savedQueries: [],
-          selectedQueryId: null,
-          activeContextTab: null,
-        });
-      },
-
-      exportQueries: () => {
-        return get().savedQueries;
-      },
-    }),
-    {
-      name: 'graph-schema-designer-saved-queries',
-      version: 1,
-    }
-  )
+    exportQueries: () => {
+      return get().savedQueries;
+    },
+  })
 );
 
 // Selectors

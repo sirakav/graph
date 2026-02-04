@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Search,
   Trash2,
@@ -324,6 +324,17 @@ export function SavedQueriesPanel({ children }: SavedQueriesPanelProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingQuery, setEditingQuery] = useState<SavedQuery | null>(null);
+  const [detailDrawerWidth, setDetailDrawerWidth] = useState(900);
+
+  // Calculate 2/3 of screen width for detail drawer
+  useEffect(() => {
+    const updateWidth = () => {
+      setDetailDrawerWidth(Math.round(window.innerWidth * (2 / 3)));
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
   
   const savedQueries = useSavedQueriesStore((state) => state.savedQueries);
   const selectedQueryId = useSavedQueriesStore((state) => state.selectedQueryId);
@@ -495,7 +506,7 @@ export function SavedQueriesPanel({ children }: SavedQueriesPanelProps) {
       >
         <ResizableDrawerContent 
           className="p-0 flex flex-col"
-          defaultWidth={600}
+          defaultWidth={detailDrawerWidth}
           minWidth={400}
           maxWidth={2000}
           showCloseButton={false}

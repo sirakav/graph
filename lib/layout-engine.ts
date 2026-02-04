@@ -9,6 +9,7 @@ interface LayoutOptions {
   nodeSpacing?: number;
   rankSpacing?: number;
   centerNodeId?: string; // For radial layout
+  showGroups?: boolean; // When false, treat all non-group nodes as top-level
 }
 
 const DEFAULT_NODE_WIDTH = 300;
@@ -32,6 +33,21 @@ function getTopLevelNodes(nodes: GraphNode[]): GraphNode[] {
 // Get children of a specific group
 function getGroupChildren(nodes: GraphNode[], groupId: string): GraphNode[] {
   return nodes.filter(n => 'parentId' in n && n.parentId === groupId);
+}
+
+// Prepare nodes for layout when groups are hidden
+// Filters out group nodes and removes parentId from children
+function prepareNodesForFlatLayout(nodes: GraphNode[]): GraphNode[] {
+  return nodes
+    .filter(n => !isGroupNode(n))
+    .map(n => {
+      if (hasParent(n)) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { parentId, extent, ...rest } = n as GraphNode & { parentId?: string; extent?: unknown };
+        return rest as GraphNode;
+      }
+      return n;
+    });
 }
 
 // Helper to get node dimensions (including groups)
@@ -165,7 +181,53 @@ export function applyHierarchicalLayout(
   edges: SchemaEdge[],
   options: LayoutOptions = {}
 ): GraphNode[] {
-  const { direction = 'TB', nodeSpacing = 80, rankSpacing = 120 } = options;
+  const { direction = 'TB', nodeSpacing = 80, rankSpacing = 120, showGroups = true } = options;
+
+  // When groups are hidden, treat all non-group nodes as top-level
+  if (!showGroups) {
+    const flatNodes = prepareNodesForFlatLayout(nodes);
+    if (flatNodes.length === 0) return nodes;
+
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+    dagreGraph.setGraph({
+      rankdir: direction,
+      nodesep: nodeSpacing,
+      ranksep: rankSpacing,
+      marginx: 50,
+      marginy: 50,
+    });
+
+    const flatNodeIds = new Set(flatNodes.map(n => n.id));
+
+    flatNodes.forEach((node) => {
+      const size = getNodeDimensions(node);
+      dagreGraph.setNode(node.id, {
+        width: size.width,
+        height: size.height,
+      });
+    });
+
+    // Only include edges between visible nodes
+    edges.filter(e => flatNodeIds.has(e.source) && flatNodeIds.has(e.target))
+      .forEach((edge) => {
+        dagreGraph.setEdge(edge.source, edge.target);
+      });
+
+    dagre.layout(dagreGraph);
+
+    return flatNodes.map((node) => {
+      const nodeWithPosition = dagreGraph.node(node.id);
+      const size = getNodeDimensions(node);
+      return {
+        ...node,
+        position: {
+          x: nodeWithPosition.x - size.width / 2,
+          y: nodeWithPosition.y - size.height / 2,
+        },
+      };
+    });
+  }
 
   // 1. First layout all groups recursively (bottom-up)
   // This updates dimensions of groups and relative positions of children
@@ -242,62 +304,96 @@ export function applyForceLayout(
   edges: SchemaEdge[],
   options: LayoutOptions = {}
 ): GraphNode[] {
-  const { nodeSpacing = 200 } = options;
+  const { nodeSpacing = 200, showGroups = true } = options;
   
-  // 1. First layout all groups recursively
-  const nodesWithGroupsLayouted = layoutAllGroups(nodes, nodeSpacing);
+  // When groups are hidden, treat all non-group nodes as top-level
+  const workingNodes = showGroups ? nodes : prepareNodesForFlatLayout(nodes);
   
-  // 2. Layout top-level nodes
+  // 1. First layout all groups recursively (only when showing groups)
+  const nodesWithGroupsLayouted = showGroups 
+    ? layoutAllGroups(workingNodes, nodeSpacing)
+    : workingNodes;
+  
+  // 2. Layout top-level nodes (all nodes when groups hidden)
   const topLevelNodes = getTopLevelNodes(nodesWithGroupsLayouted);
   
-  if (topLevelNodes.length === 0) return nodesWithGroupsLayouted;
+  if (topLevelNodes.length === 0) return showGroups ? nodesWithGroupsLayouted : nodes;
 
-  const topLevelNodeIds = new Set(topLevelNodes.map(n => n.id));
+  // Sort nodes by ID for deterministic ordering
+  const sortedNodes = [...topLevelNodes].sort((a, b) => a.id.localeCompare(b.id));
+
+  const topLevelNodeIds = new Set(sortedNodes.map(n => n.id));
   const topLevelEdges = edges.filter(
     e => topLevelNodeIds.has(e.source) && topLevelNodeIds.has(e.target)
   );
   
-  // Create a map of node positions for top-level nodes only
+  // Calculate ideal distance between connected nodes: spacing + average node dimension
+  // This represents the gap we want between node edges
+  const avgNodeSize = (DEFAULT_NODE_WIDTH + DEFAULT_NODE_HEIGHT) / 2;
+  const idealEdgeDistance = nodeSpacing + avgNodeSize;
+  
+  // For repulsion, we want nodes to stay apart by at least this much
+  // but we scale it down so the layout doesn't explode
+  const minRepulsionDistance = avgNodeSize * 1.2; // Just enough to not overlap
+  
+  // Initialize positions DETERMINISTICALLY in a circle pattern
+  // This ensures same input always produces same output
   const positions = new Map<string, { x: number; y: number }>();
-  topLevelNodes.forEach((node) => {
-    positions.set(node.id, { ...node.position });
+  const initialRadius = Math.max(200, avgNodeSize * Math.sqrt(sortedNodes.length) * 0.8);
+  
+  sortedNodes.forEach((node, index) => {
+    const angle = (2 * Math.PI * index) / sortedNodes.length - Math.PI / 2;
+    positions.set(node.id, {
+      x: Math.cos(angle) * initialRadius,
+      y: Math.sin(angle) * initialRadius,
+    });
   });
 
   // Run force simulation iterations
-  const iterations = 100;
-  const repulsionStrength = nodeSpacing * nodeSpacing;
-  const attractionStrength = 0.1;
-  const damping = 0.95;
+  const iterations = 200;
+  const damping = 0.85;
 
   // Initialize velocities
   const velocities = new Map<string, { vx: number; vy: number }>();
-  topLevelNodes.forEach((node) => {
+  sortedNodes.forEach((node) => {
     velocities.set(node.id, { vx: 0, vy: 0 });
   });
 
   for (let i = 0; i < iterations; i++) {
-    const temperature = 1 - i / iterations;
+    // Temperature decreases over time for convergence
+    const temperature = Math.max(0.01, 1 - (i / iterations));
 
-    // Apply repulsion between all top-level nodes
-    topLevelNodes.forEach((node1) => {
+    // Apply repulsion between all nodes
+    // Use a gentler repulsion that only activates when nodes are too close
+    sortedNodes.forEach((node1) => {
       const pos1 = positions.get(node1.id)!;
       const vel1 = velocities.get(node1.id)!;
 
-      topLevelNodes.forEach((node2) => {
-        if (node1.id === node2.id) return;
+      sortedNodes.forEach((node2) => {
+        if (node1.id >= node2.id) return; // Process each pair once
         
         const pos2 = positions.get(node2.id)!;
+        const vel2 = velocities.get(node2.id)!;
+        
         const dx = pos1.x - pos2.x;
         const dy = pos1.y - pos2.y;
         const distance = Math.sqrt(dx * dx + dy * dy) || 1;
         
-        const force = repulsionStrength / (distance * distance);
-        vel1.vx += (dx / distance) * force * temperature;
-        vel1.vy += (dy / distance) * force * temperature;
+        // Gentler repulsion: inverse square law but scaled down
+        // Only significant when nodes are close
+        const repulsionForce = (minRepulsionDistance * minRepulsionDistance) / (distance * distance) * 50;
+        const fx = (dx / distance) * repulsionForce * temperature;
+        const fy = (dy / distance) * repulsionForce * temperature;
+        
+        vel1.vx += fx;
+        vel1.vy += fy;
+        vel2.vx -= fx;
+        vel2.vy -= fy;
       });
     });
 
-    // Apply attraction for connected nodes
+    // Apply attraction for connected nodes (spring force)
+    // This is the main driver of the layout - pulls connected nodes to idealEdgeDistance
     topLevelEdges.forEach((edge) => {
       const pos1 = positions.get(edge.source);
       const pos2 = positions.get(edge.target);
@@ -310,9 +406,12 @@ export function applyForceLayout(
       const dy = pos2.y - pos1.y;
       const distance = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      const force = distance * attractionStrength * temperature;
-      const fx = (dx / distance) * force;
-      const fy = (dy / distance) * force;
+      // Spring force: pull toward ideal distance
+      // Stronger spring constant for better convergence
+      const displacement = distance - idealEdgeDistance;
+      const springForce = displacement * 0.15 * temperature;
+      const fx = (dx / distance) * springForce;
+      const fy = (dy / distance) * springForce;
 
       vel1.vx += fx;
       vel1.vy += fy;
@@ -320,8 +419,18 @@ export function applyForceLayout(
       vel2.vy -= fy;
     });
 
+    // Gentle centering force to keep graph compact
+    sortedNodes.forEach((node) => {
+      const pos = positions.get(node.id)!;
+      const vel = velocities.get(node.id)!;
+      
+      // Pull toward center
+      vel.vx -= pos.x * 0.001 * temperature;
+      vel.vy -= pos.y * 0.001 * temperature;
+    });
+
     // Apply velocities and damping
-    topLevelNodes.forEach((node) => {
+    sortedNodes.forEach((node) => {
       const pos = positions.get(node.id)!;
       const vel = velocities.get(node.id)!;
 
@@ -342,10 +451,11 @@ export function applyForceLayout(
     if (hasParent(node)) {
       return node;
     } else {
-      const pos = positions.get(node.id)!;
+      const pos = positions.get(node.id);
+      if (!pos) return node;
       const newPos = {
-        x: pos.x - centerX + 400,
-        y: pos.y - centerY + 300,
+        x: pos.x - centerX + 500,
+        y: pos.y - centerY + 400,
       };
       return { ...node, position: newPos };
     }
@@ -358,30 +468,38 @@ export function applyRadialLayout(
   edges: SchemaEdge[],
   options: LayoutOptions = {}
 ): GraphNode[] {
-  const { centerNodeId, nodeSpacing = 200 } = options;
+  const { centerNodeId, nodeSpacing = 200, showGroups = true } = options;
   
-  // 1. First layout all groups recursively
-  const nodesWithGroupsLayouted = layoutAllGroups(nodes, nodeSpacing);
+  // When groups are hidden, treat all non-group nodes as top-level
+  const workingNodes = showGroups ? nodes : prepareNodesForFlatLayout(nodes);
   
-  // 2. Layout top-level nodes
+  // 1. First layout all groups recursively (only when showing groups)
+  const nodesWithGroupsLayouted = showGroups 
+    ? layoutAllGroups(workingNodes, nodeSpacing)
+    : workingNodes;
+  
+  // 2. Layout top-level nodes (all nodes when groups hidden)
   const topLevelNodes = getTopLevelNodes(nodesWithGroupsLayouted);
   
-  if (topLevelNodes.length === 0) return nodesWithGroupsLayouted;
+  if (topLevelNodes.length === 0) return showGroups ? nodesWithGroupsLayouted : nodes;
 
-  // Find the center node
+  // Sort nodes by ID for deterministic ordering
+  const sortedNodes = [...topLevelNodes].sort((a, b) => a.id.localeCompare(b.id));
+
+  // Find the center node - if not specified, use the first sorted node for determinism
   let centerNode = centerNodeId 
-    ? topLevelNodes.find((n) => n.id === centerNodeId)
+    ? sortedNodes.find((n) => n.id === centerNodeId)
     : undefined;
-  if (!centerNode) centerNode = topLevelNodes[0];
+  if (!centerNode) centerNode = sortedNodes[0];
 
-  const topLevelNodeIds = new Set(topLevelNodes.map(n => n.id));
+  const topLevelNodeIds = new Set(sortedNodes.map(n => n.id));
   const topLevelEdges = edges.filter(
     e => topLevelNodeIds.has(e.source) && topLevelNodeIds.has(e.target)
   );
 
   // Build adjacency list for top-level nodes
   const adjacency = new Map<string, Set<string>>();
-  topLevelNodes.forEach((node) => adjacency.set(node.id, new Set()));
+  sortedNodes.forEach((node) => adjacency.set(node.id, new Set()));
   topLevelEdges.forEach((edge) => {
     adjacency.get(edge.source)?.add(edge.target);
     adjacency.get(edge.target)?.add(edge.source);
@@ -396,7 +514,9 @@ export function applyRadialLayout(
     const current = queue.shift()!;
     const currentLevel = levels.get(current)!;
     
-    adjacency.get(current)?.forEach((neighbor) => {
+    // Sort neighbors for deterministic BFS traversal
+    const neighbors = Array.from(adjacency.get(current) || []).sort();
+    neighbors.forEach((neighbor) => {
       if (!levels.has(neighbor)) {
         levels.set(neighbor, currentLevel + 1);
         queue.push(neighbor);
@@ -404,29 +524,55 @@ export function applyRadialLayout(
     });
   }
 
-  // Handle disconnected nodes
-  topLevelNodes.forEach((node) => {
+  // Handle disconnected nodes - assign to outer ring
+  sortedNodes.forEach((node) => {
     if (!levels.has(node.id)) {
       const maxLevel = levels.size > 0 ? Math.max(...Array.from(levels.values())) : 0;
       levels.set(node.id, maxLevel + 1);
     }
   });
 
-  // Group nodes by level
+  // Group nodes by level, sorted by ID within each level for determinism
   const nodesByLevel = new Map<number, string[]>();
   levels.forEach((level, nodeId) => {
     if (!nodesByLevel.has(level)) nodesByLevel.set(level, []);
     nodesByLevel.get(level)!.push(nodeId);
   });
+  // Sort nodes within each level
+  nodesByLevel.forEach((nodeIds) => {
+    nodeIds.sort();
+  });
+
+  // Calculate spacing that accounts for node dimensions
+  // This represents the actual gap between nodes
+  const avgNodeSize = (DEFAULT_NODE_WIDTH + DEFAULT_NODE_HEIGHT) / 2;
+  const effectiveSpacing = nodeSpacing + avgNodeSize;
 
   // Position nodes in concentric circles
   const positions = new Map<string, { x: number; y: number }>();
   
-  nodesByLevel.forEach((nodeIds, level) => {
+  // Track cumulative radius to account for different node counts per level
+  let cumulativeRadius = 0;
+  
+  // Get sorted levels
+  const sortedLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
+  
+  sortedLevels.forEach((level) => {
+    const nodeIds = nodesByLevel.get(level)!;
+    
     if (level === 0) {
       positions.set(nodeIds[0], { x: 0, y: 0 });
+      // Initial radius is based on the gap we want from center
+      cumulativeRadius = effectiveSpacing;
     } else {
-      const radius = level * nodeSpacing;
+      // Calculate minimum radius needed to fit all nodes at this level
+      // Circumference needed = nodeCount * (nodeWidth + spacing)
+      const circumferenceNeeded = nodeIds.length * (DEFAULT_NODE_WIDTH + nodeSpacing);
+      const minRadiusForNodes = circumferenceNeeded / (2 * Math.PI);
+      
+      // Use the larger of: cumulative radius or minimum radius for this level's nodes
+      const radius = Math.max(cumulativeRadius, minRadiusForNodes);
+      
       const angleStep = (2 * Math.PI) / nodeIds.length;
       
       nodeIds.forEach((nodeId, index) => {
@@ -436,8 +582,17 @@ export function applyRadialLayout(
           y: Math.sin(angle) * radius,
         });
       });
+      
+      // Update cumulative radius for next level
+      cumulativeRadius = radius + effectiveSpacing;
     }
   });
+
+  // Calculate center offset based on bounding box
+  const xs = Array.from(positions.values()).map((p) => p.x);
+  const ys = Array.from(positions.values()).map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
 
   return nodesWithGroupsLayouted.map((node) => {
     if (hasParent(node)) {
@@ -445,8 +600,8 @@ export function applyRadialLayout(
     } else {
       const pos = positions.get(node.id) || { x: 0, y: 0 };
       const newPos = {
-        x: pos.x + 500,
-        y: pos.y + 400,
+        x: pos.x - minX + 50,
+        y: pos.y - minY + 50,
       };
       return { ...node, position: newPos };
     }
@@ -458,26 +613,40 @@ export function applyGridLayout(
   nodes: GraphNode[],
   options: LayoutOptions = {}
 ): GraphNode[] {
-  const { nodeSpacing = 250 } = options;
+  const { nodeSpacing = 250, showGroups = true } = options;
   
-  // 1. First layout all groups recursively
-  const nodesWithGroupsLayouted = layoutAllGroups(nodes, nodeSpacing);
+  // When groups are hidden, treat all non-group nodes as top-level
+  const workingNodes = showGroups ? nodes : prepareNodesForFlatLayout(nodes);
   
-  // 2. Layout top-level nodes
+  // 1. First layout all groups recursively (only when showing groups)
+  const nodesWithGroupsLayouted = showGroups 
+    ? layoutAllGroups(workingNodes, nodeSpacing)
+    : workingNodes;
+  
+  // 2. Layout top-level nodes (all nodes when groups hidden)
   const topLevelNodes = getTopLevelNodes(nodesWithGroupsLayouted);
   
-  if (topLevelNodes.length === 0) return nodesWithGroupsLayouted;
+  if (topLevelNodes.length === 0) return showGroups ? nodesWithGroupsLayouted : nodes;
   
-  const columns = Math.ceil(Math.sqrt(topLevelNodes.length));
+  // Sort nodes by ID for deterministic ordering
+  const sortedNodes = [...topLevelNodes].sort((a, b) => a.id.localeCompare(b.id));
+  
+  const columns = Math.ceil(Math.sqrt(sortedNodes.length));
   
   // Create position map for top-level nodes
+  // Spacing represents the GAP between nodes, so we add node dimensions
   const topLevelPositions = new Map<string, { x: number; y: number }>();
-  topLevelNodes.forEach((node, index) => {
+  sortedNodes.forEach((node, index) => {
     const row = Math.floor(index / columns);
     const col = index % columns;
+    
+    // Calculate cell size: node dimension + spacing (gap)
+    const cellWidth = DEFAULT_NODE_WIDTH + nodeSpacing;
+    const cellHeight = DEFAULT_NODE_HEIGHT + nodeSpacing;
+    
     topLevelPositions.set(node.id, {
-      x: col * nodeSpacing + 50,
-      y: row * nodeSpacing + 50,
+      x: col * cellWidth + 50,
+      y: row * cellHeight + 50,
     });
   });
   

@@ -1,16 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Hand, MousePointer2, Trash2, Group, Ungroup, Link2, HelpCircle } from 'lucide-react';
+import { Plus, Hand, MousePointer2, Trash2, Group, Ungroup } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Separator } from '@/components/ui/separator';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { NodeEditorDialog } from './node-editor-dialog';
 import { useGraphStore, type MouseMode } from '@/lib/graph-store';
 import { cn } from '@/lib/utils';
@@ -97,8 +92,9 @@ export function EditToolbar() {
                 value="pan" 
                 aria-label="Pan mode"
                 className={cn(
-                  "h-8 w-8 p-0 data-[state=on]:bg-zinc-700 data-[state=on]:text-white",
-                  "hover:bg-zinc-800 hover:text-zinc-200"
+                  "h-8 w-8 p-0",
+                  "data-[state=on]:bg-blue-600 data-[state=on]:text-white data-[state=on]:hover:bg-blue-500",
+                  "data-[state=off]:text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                 )}
               >
                 <Hand className="w-4 h-4" />
@@ -115,8 +111,9 @@ export function EditToolbar() {
                 value="select" 
                 aria-label="Select mode"
                 className={cn(
-                  "h-8 w-8 p-0 data-[state=on]:bg-zinc-700 data-[state=on]:text-white",
-                  "hover:bg-zinc-800 hover:text-zinc-200"
+                  "h-8 w-8 p-0",
+                  "data-[state=on]:bg-blue-600 data-[state=on]:text-white data-[state=on]:hover:bg-blue-500",
+                  "data-[state=off]:text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                 )}
               >
                 <MousePointer2 className="w-4 h-4" />
@@ -208,44 +205,6 @@ export function EditToolbar() {
         </TooltipTrigger>
         <TooltipContent side="bottom">Add node</TooltipContent>
       </Tooltip>
-
-      {/* Help Button - How to create relationships */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-zinc-500 hover:text-zinc-300"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent 
-          side="bottom" 
-          align="end" 
-          className="w-72 p-4 bg-zinc-900 border-zinc-800"
-        >
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm text-zinc-200 flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-emerald-400" />
-              Creating Relationships
-            </h4>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              To connect nodes, drag from the <span className="text-emerald-400 font-medium">green handle</span> at the bottom of a node to the <span className="text-blue-400 font-medium">blue handle</span> at the top of another node.
-            </p>
-            <div className="flex items-center gap-2 text-xs text-zinc-500 pt-1 border-t border-zinc-800">
-              <span className="w-3 h-3 rounded-full bg-emerald-400/80 border border-emerald-500/50" />
-              <span>Source (drag from)</span>
-              <span className="mx-1">→</span>
-              <span className="w-3 h-3 rounded-full bg-blue-400/80 border border-blue-500/50" />
-              <span>Target (drop to)</span>
-            </div>
-            <p className="text-[10px] text-zinc-600">
-              Tip: Double-click a relationship to edit its type and properties.
-            </p>
-          </div>
-        </PopoverContent>
-      </Popover>
 
       <NodeEditorDialog
         open={nodeDialogOpen}

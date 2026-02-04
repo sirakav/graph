@@ -69,10 +69,11 @@ export function LayoutToolbar() {
       nodeSpacing: spacing,
       rankSpacing: spacing * 1.2,
       centerNodeId: selectedNodeId || undefined,
+      showGroups,
     });
 
     setNodes(newNodes);
-  }, [nodes, edges, algorithm, direction, spacing, selectedNodeId, setNodes]);
+  }, [nodes, edges, algorithm, direction, spacing, selectedNodeId, setNodes, showGroups]);
 
   // Automatically apply layout when graph is first loaded
   useEffect(() => {
@@ -93,6 +94,7 @@ export function LayoutToolbar() {
         nodeSpacing: spacing,
         rankSpacing: spacing * 1.2,
         centerNodeId: selectedNodeId || undefined,
+        showGroups,
       });
       setNodes(newNodes);
       appliedLayoutForNodes.current = nodeIdsHash;

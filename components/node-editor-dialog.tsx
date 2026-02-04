@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Circle, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Circle, Sparkles, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,7 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
   const [newLabel, setNewLabel] = useState('');
   const [properties, setProperties] = useState<{ key: string; value: string }[]>([]);
   const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0]);
+  const [typeSearch, setTypeSearch] = useState('');
 
   // Extract node type suggestions from existing graph
   const nodeTypeSuggestions = useMemo((): NodeTypeSuggestion[] => {
@@ -130,6 +131,7 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
         setProperties([]);
         setSelectedColor(COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)]);
       }
+      setTypeSearch('');
     }
   }, [open, existingData]);
 
@@ -206,21 +208,42 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
         </DialogHeader>
 
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-6 p-1">
+          <div className="space-y-6 p-4">
             {/* Node Type Suggestions - Only show when creating new node and suggestions exist */}
             {!isEditing && nodeTypeSuggestions.length > 0 && (
-              <div>
-                <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <div className="flex flex-col min-h-0">
+                <Label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5 shrink-0">
                   <Sparkles className="w-3 h-3" />
                   Use Existing Type ({nodeTypeSuggestions.length})
                 </Label>
+                <div className="relative mb-2 shrink-0">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <Input
+                    value={typeSearch}
+                    onChange={(e) => setTypeSearch(e.target.value)}
+                    placeholder="Search types..."
+                    className="bg-zinc-800 border-zinc-700 text-zinc-200 pl-8 h-8 text-sm"
+                  />
+                </div>
                 <div className="max-h-[200px] overflow-y-auto overscroll-contain rounded-lg border border-zinc-800/50 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent hover:scrollbar-thumb-zinc-600 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700 hover:[&::-webkit-scrollbar-thumb]:bg-zinc-600">
-                  {nodeTypeSuggestions.map((suggestion, index) => (
+                  {nodeTypeSuggestions
+                    .filter((suggestion) => {
+                      if (!typeSearch.trim()) return true;
+                      const search = typeSearch.toLowerCase();
+                      const labelsMatch = suggestion.labels.some((label) =>
+                        label.toLowerCase().includes(search)
+                      );
+                      const propsMatch = suggestion.properties.some((prop) =>
+                        prop.toLowerCase().includes(search)
+                      );
+                      return labelsMatch || propsMatch;
+                    })
+                    .map((suggestion, index) => (
                     <button
                       key={index}
                       type="button"
                       onClick={() => applySuggestion(suggestion)}
-                      className="w-full flex items-start gap-3 p-3 border-b border-zinc-800/50 last:border-b-0 hover:bg-zinc-800/50 transition-all text-left"
+                      className="w-full flex items-start gap-3 p-3 border-b border-zinc-800/50 last:border-b-0 hover:bg-zinc-800/50 transition-all text-left min-w-0"
                     >
                       <div
                         className="w-3 h-3 rounded-full shrink-0 mt-0.5 ring-2 ring-offset-1 ring-offset-zinc-900"
@@ -235,7 +258,7 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
                             <Badge
                               key={labelIdx}
                               variant="secondary"
-                              className="text-xs font-medium"
+                              className="text-xs font-medium truncate max-w-[150px]"
                               style={{
                                 backgroundColor: `${suggestion.color.border}15`,
                                 color: suggestion.color.border,
@@ -246,18 +269,30 @@ export function NodeEditorDialog({ open, onOpenChange, nodeId }: NodeEditorDialo
                               {label}
                             </Badge>
                           ))}
-                          <span className="text-[10px] text-zinc-500">
+                          <span className="text-[10px] text-zinc-500 shrink-0">
                             ({suggestion.count} {suggestion.count === 1 ? 'node' : 'nodes'})
                           </span>
                         </div>
                         {suggestion.properties.length > 0 && (
-                          <div className="mt-1.5 text-xs text-zinc-500 truncate">
+                          <div className="mt-1.5 text-xs text-zinc-500 line-clamp-2 break-all">
                             Properties: {suggestion.properties.join(', ')}
                           </div>
                         )}
                       </div>
                     </button>
                   ))}
+                  {typeSearch.trim() &&
+                    nodeTypeSuggestions.filter((s) => {
+                      const search = typeSearch.toLowerCase();
+                      return (
+                        s.labels.some((l) => l.toLowerCase().includes(search)) ||
+                        s.properties.some((p) => p.toLowerCase().includes(search))
+                      );
+                    }).length === 0 && (
+                      <div className="p-3 text-sm text-zinc-500 text-center">
+                        No types match &quot;{typeSearch}&quot;
+                      </div>
+                    )}
                 </div>
                 <Separator className="bg-zinc-800 mt-4" />
               </div>

@@ -74,6 +74,7 @@ export default function Home() {
   const updateSavedGraph = useSavedGraphsStore((state) => state.updateGraph);
   const savedQueries = useSavedQueriesStore((state) => state.savedQueries);
   const clearQueries = useSavedQueriesStore((state) => state.clearQueries);
+  const replaceQueries = useSavedQueriesStore((state) => state.replaceQueries);
   const hasActiveHighlights = useHasActiveHighlights();
   const clearHighlights = useGraphStore((state) => state.clearHighlights);
   
@@ -184,6 +185,13 @@ export default function Home() {
         const { nodes: parsedNodes, edges: parsedEdges, graphStyle: parsedStyle } = parseArrowGraph(sharedGraph);
         setGraph(parsedNodes, parsedEdges, parsedStyle);
         
+        // Load queries from the shared graph (or clear if none)
+        if (sharedGraph.queries && sharedGraph.queries.length > 0) {
+          replaceQueries(sharedGraph.queries);
+        } else {
+          clearQueries();
+        }
+        
         // Auto-save the imported graph
         saveGraph('Imported from shared link', sharedGraph);
         
@@ -197,6 +205,8 @@ export default function Home() {
     
     // Priority 2: Skip demo if user has saved graphs
     if (savedGraphs.length > 0) {
+      // Clear any stale queries when no graph is auto-loaded
+      clearQueries();
       setIsInitialized(true);
       return;
     }
@@ -210,11 +220,17 @@ export default function Home() {
         if (arrowGraph) {
           const { nodes, edges, graphStyle } = parseArrowGraph(arrowGraph);
           setGraph(nodes, edges, graphStyle);
+          // Load queries from demo graph (or clear if none)
+          if (arrowGraph.queries && arrowGraph.queries.length > 0) {
+            replaceQueries(arrowGraph.queries);
+          } else {
+            clearQueries();
+          }
         }
       })
       .catch((err) => console.error('Failed to load demo graph:', err))
       .finally(() => setIsInitialized(true));
-  }, [setGraph, saveGraph, savedGraphs.length, isInitialized]);
+  }, [setGraph, saveGraph, savedGraphs.length, isInitialized, replaceQueries, clearQueries]);
 
   const hasGraph = nodes.length > 0;
 
@@ -298,17 +314,19 @@ export default function Home() {
                 )}
               </Button>
             </SavedGraphsPanel>
-            <SavedQueriesPanel>
-              <Button variant="outline" size="sm" className="gap-2">
-                <FileCode className="w-4 h-4" />
-                <span className="hidden sm:inline">Queries</span>
-                {savedQueries.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {savedQueries.length}
-                  </Badge>
-                )}
-              </Button>
-            </SavedQueriesPanel>
+            {hasGraph && (
+              <SavedQueriesPanel>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <FileCode className="w-4 h-4" />
+                  <span className="hidden sm:inline">Queries</span>
+                  {savedQueries.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {savedQueries.length}
+                    </Badge>
+                  )}
+                </Button>
+              </SavedQueriesPanel>
+            )}
             <SchemaExplorer>
               <Button variant="outline" size="sm" className="gap-2" disabled={nodes.length === 0}>
                 <Layers className="w-4 h-4" />

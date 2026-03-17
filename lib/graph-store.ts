@@ -30,6 +30,10 @@ interface GraphState {
   currentSavedGraphName: string | null;
   hasUnsavedChanges: boolean;
   
+  // Clipboard for copy/paste
+  clipboardNodes: GraphNode[];
+  clipboardEdges: SchemaEdge[];
+  
   // Selection state (supports multi-selection)
   selectedNodeIds: string[];
   selectedEdgeId: string | null;
@@ -87,6 +91,10 @@ interface GraphState {
   updateEdge: (edgeId: string, data: { relationshipType?: string; properties?: Record<string, unknown> }) => void;
   deleteEdge: (edgeId: string) => void;
   
+  // Copy/paste actions
+  copySelectedNodes: () => void;
+  pasteNodes: () => void;
+  
   // Group actions
   groupSelectedNodes: () => string | null;
   ungroupNodes: (groupId: string) => void;
@@ -105,6 +113,8 @@ export const useGraphStore = create<GraphState>((set) => ({
   currentSavedGraphId: null,
   currentSavedGraphName: null,
   hasUnsavedChanges: false,
+  clipboardNodes: [],
+  clipboardEdges: [],
   selectedNodeIds: [],
   selectedEdgeId: null,
   highlightedNodeIds: [],
@@ -348,6 +358,64 @@ export const useGraphStore = create<GraphState>((set) => ({
     hasUnsavedChanges: true,
   })),
   
+  // Copy selected nodes (and all their connected edges) to clipboard
+  copySelectedNodes: () => {
+    const state = useGraphStore.getState();
+    const selectedSet = new Set(state.selectedNodeIds);
+    if (selectedSet.size === 0) return;
+
+    const clipboardNodes = state.nodes.filter((n) => selectedSet.has(n.id));
+    const clipboardEdges = state.edges.filter(
+      (e) => selectedSet.has(e.source) || selectedSet.has(e.target)
+    );
+
+    useGraphStore.setState({ clipboardNodes, clipboardEdges });
+  },
+
+  // Paste clipboard nodes (with new IDs, offset positions, and remapped inter-node edges)
+  pasteNodes: () => {
+    const state = useGraphStore.getState();
+    if (state.clipboardNodes.length === 0) return;
+
+    const PASTE_OFFSET = 40;
+    const idMap = new Map<string, string>();
+
+    const newNodes: GraphNode[] = state.clipboardNodes.map((node) => {
+      const newId = `n${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      idMap.set(node.id, newId);
+      return {
+        ...node,
+        id: newId,
+        position: {
+          x: node.position.x + PASTE_OFFSET,
+          y: node.position.y + PASTE_OFFSET,
+        },
+        // Strip group containment so pasted nodes are free-standing
+        parentId: undefined,
+        extent: undefined,
+        data: {
+          ...node.data,
+          groupId: undefined,
+        },
+      } as GraphNode;
+    });
+
+    const newEdges: SchemaEdge[] = state.clipboardEdges.map((edge) => ({
+      ...edge,
+      id: `e${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      source: idMap.get(edge.source) ?? edge.source,
+      target: idMap.get(edge.target) ?? edge.target,
+    }));
+
+    set((s) => ({
+      nodes: [...s.nodes, ...newNodes],
+      edges: [...s.edges, ...newEdges],
+      selectedNodeIds: newNodes.map((n) => n.id),
+      selectedEdgeId: null,
+      hasUnsavedChanges: true,
+    }));
+  },
+
   // Group selected nodes into a new group
   groupSelectedNodes: () => {
     const state = useGraphStore.getState();

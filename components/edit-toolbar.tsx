@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Hand, MousePointer2, Trash2, Group, Ungroup } from 'lucide-react';
+import { Plus, Hand, MousePointer2, Trash2, Group, Ungroup, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -19,6 +19,8 @@ export function EditToolbar() {
   const deleteSelectedNodes = useGraphStore((state) => state.deleteSelectedNodes);
   const groupSelectedNodes = useGraphStore((state) => state.groupSelectedNodes);
   const ungroupNodes = useGraphStore((state) => state.ungroupNodes);
+  const copySelectedNodes = useGraphStore((state) => state.copySelectedNodes);
+  const pasteNodes = useGraphStore((state) => state.pasteNodes);
   
   // Check if selection contains a group that can be ungrouped
   const selectedGroupId = useMemo(() => {
@@ -44,12 +46,12 @@ export function EditToolbar() {
         return;
       }
       
-      // V for select mode (like most design tools)
-      if (e.key === 'v' || e.key === 'V') {
+      // V for select mode (like most design tools) — skip when modifier held
+      if ((e.key === 'v' || e.key === 'V') && !e.metaKey && !e.ctrlKey) {
         setMouseMode('select');
       }
-      // H for pan/hand mode
-      if (e.key === 'h' || e.key === 'H') {
+      // H for pan/hand mode — skip when modifier held
+      if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey) {
         setMouseMode('pan');
       }
       // Delete/Backspace to delete selected nodes
@@ -60,6 +62,18 @@ export function EditToolbar() {
       // Escape to clear selection and go back to pan mode
       if (e.key === 'Escape') {
         setMouseMode('pan');
+      }
+      // Cmd/Ctrl+C to copy selected nodes
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
+        if (selectedNodeIds.length > 0) {
+          e.preventDefault();
+          copySelectedNodes();
+        }
+      }
+      // Cmd/Ctrl+V to paste nodes
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        pasteNodes();
       }
       // Cmd/Ctrl+G to group selected nodes
       if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
@@ -74,7 +88,7 @@ export function EditToolbar() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setMouseMode, selectedNodeIds.length, deleteSelectedNodes, canGroup, selectedGroupId, groupSelectedNodes, ungroupNodes]);
+  }, [setMouseMode, selectedNodeIds.length, deleteSelectedNodes, canGroup, selectedGroupId, groupSelectedNodes, ungroupNodes, copySelectedNodes, pasteNodes]);
 
   return (
     <div className="flex items-center gap-2">
@@ -135,6 +149,25 @@ export function EditToolbar() {
           
           <Separator orientation="vertical" className="h-4 bg-zinc-700" />
           
+          {/* Copy button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                onClick={copySelectedNodes}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Copy <kbd className="ml-1.5 px-1.5 py-0.5 text-[10px] font-mono bg-background/20 border border-current/20 rounded">⌘C</kbd></p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Separator orientation="vertical" className="h-4 bg-zinc-700" />
+
           {/* Group button - show when 2+ non-group nodes selected */}
           {canGroup && (
             <Tooltip>

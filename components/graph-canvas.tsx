@@ -365,6 +365,7 @@ export function GraphCanvas() {
         // In select mode, allow panning with scroll wheel
         panOnScroll={isSelectMode}
         selectionKeyCode={null}
+        deleteKeyCode={null}
       >
         <Background
           color="#27272a"
